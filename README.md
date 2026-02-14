@@ -19,18 +19,40 @@ Hatchling is an extension for the [pi-coding-agent](https://github.com/badlogic/
 # Install dependencies
 bun install
 
-# Link for global usage
+# Link for global usage (optional)
 bun link
-
-# Or run directly
-./bin/hatchling
 ```
 
 ## 📖 Usage
 
-Hatchling extends pi with custom commands:
+### First Time Setup
 
-### Commands
+```bash
+# Initialize a new Hatchling
+hatchling init
+```
+
+This will guide you through:
+1. Selecting an AI provider (Anthropic, OpenAI, Ollama, Google)
+2. Choosing a model
+3. Naming your agent
+4. Interactive self-discovery conversation (coming soon: pi-tui integration)
+
+### Start Your Agent
+
+```bash
+# Launch Hatchling with pi-coding-agent
+hatchling start
+```
+
+### Check System Health
+
+```bash
+# View vitals and metrics
+hatchling vitals
+```
+
+### Commands Inside Hatchling
 
 - `/sleep` - Perform evolution cycle (snapshot → synthesize → commit)
 - `/mutate <name> <description>` - Create new skill in staging
@@ -44,22 +66,26 @@ Hatchling extends pi with custom commands:
 
 ```
 hatchling-core/
-├── brain/              # Core configuration & DNA
-│   ├── config.json
+├── .self/              # Agent identity (DNA)
 │   ├── CONSTITUTION.md (immutable)
 │   ├── SOUL.md (immutable)  
 │   ├── IDENTITY.md (immutable)
-│   └── USER_CORE.md (immutable)
+│   ├── STYLE.md (immutable)
+│   ├── USER_CORE.md (immutable)
+│   ├── USER_CONTEXT.md (adaptive)
+│   └── EXPERIENCE.md (evolving)
+├── brain/              # Configuration & state
+│   ├── config.json
+│   ├── mutation_state.json
+│   ├── curiosity_state.json
+│   └── EVOLUTION_LOG.json
 ├── memory/             # Experience & telemetry
 │   ├── daily/
 │   ├── sleep_logs/
 │   └── telemetry/
 ├── limbs/              # Active skills
 ├── limbs_staging/      # Quarantined mutations
-├── projects/           # User projects
-└── src/
-    ├── extension.ts    # ExtensionAPI entry point
-    └── system/         # Core modules
+└── projects/           # User projects
 ```
 
 ## 🧬 Architecture
