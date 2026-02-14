@@ -1,0 +1,20 @@
+{
+  "disk": {
+    "current": 0,
+    "max": 1073741824,
+    "alerts": []
+  },
+  "tokens": {
+    "today": 0,
+    "month": 0,
+    "maxPerDay": 100000,
+    "maxPerMonth": 2000000,
+    "resetDaily": "2026-02-14",
+    "resetMonthly": "2026-02"
+  },
+  "cpu": {
+    "current": 0,
+    "max": 50,
+    "samples": []
+  }
+}

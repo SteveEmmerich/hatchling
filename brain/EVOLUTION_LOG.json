@@ -1,0 +1,14 @@
+{
+  "birthDate": "2026-02-14T02:59:18.332Z",
+  "totalMutations": 0,
+  "successfulMutations": 0,
+  "failedMutations": 0,
+  "rollbacks": 0,
+  "sleepCycles": 0,
+  "totalCommits": 0,
+  "heuristicCount": 0,
+  "averageEnergyPerTask": 0,
+  "curiosityAdjustments": [],
+  "uptime": 0,
+  "lastSleep": null
+}

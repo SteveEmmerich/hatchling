@@ -1,0 +1,8 @@
+{
+  "logLevel": "info",
+  "destinations": ["file", "console"],
+  "metrics": {
+    "interval": 60000,
+    "enabled": true
+  }
+}
