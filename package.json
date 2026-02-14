@@ -38,7 +38,9 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
+    "@clack/prompts": "^1.0.1",
     "@types/inquirer": "^9.0.9",
+    "citty": "^0.2.1",
     "inquirer": "^13.2.2"
   }
 }

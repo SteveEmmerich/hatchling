@@ -2,11 +2,11 @@ import path from 'path';
 import fs from 'fs/promises';
 
 const PROTECTED_FILES = [
-  'brain/CONSTITUTION.md',
-  'brain/SOUL.md',
-  'brain/IDENTITY.md',
-  'brain/STYLE.md',
-  'brain/USER_CORE.md'
+  '.self/CONSTITUTION.md',
+  '.self/SOUL.md',
+  '.self/IDENTITY.md',
+  '.self/STYLE.md',
+  '.self/USER_CORE.md'
 ];
 
 export class ProtectedFileError extends Error {

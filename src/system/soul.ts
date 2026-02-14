@@ -1,9 +1,9 @@
 import { PathGuard } from './pathGuard.js';
 import fs from 'fs/promises';
 
-export async function getAgentName(): Promise<string> {
+export async function getAgentName(rootDir: string): Promise<string> {
   try {
-    const configPath = await PathGuard.validatePath('brain/config.json', 'read');
+    const configPath = await PathGuard.validatePath(rootDir, 'brain/config.json', 'read');
     const config = await Bun.file(configPath).json();
     return config.agentName || 'Hatchling';
   } catch {
@@ -11,14 +11,14 @@ export async function getAgentName(): Promise<string> {
   }
 }
 
-export async function loadCompleteIdentity(): Promise<string> {
+export async function loadCompleteIdentity(rootDir: string): Promise<string> {
   const files = [
-    { name: 'CONSTITUTION', path: 'brain/CONSTITUTION.md' },
-    { name: 'SOUL', path: 'brain/SOUL.md' },
-    { name: 'IDENTITY', path: 'brain/IDENTITY.md' },
-    { name: 'STYLE', path: 'brain/STYLE.md' },
-    { name: 'USER_CORE', path: 'brain/USER_CORE.md' },
-    { name: 'USER_CONTEXT', path: 'brain/USER_CONTEXT.md' },
+    { name: 'CONSTITUTION', path: '.self/CONSTITUTION.md' },
+    { name: 'SOUL', path: '.self/SOUL.md' },
+    { name: 'IDENTITY', path: '.self/IDENTITY.md' },
+    { name: 'STYLE', path: '.self/STYLE.md' },
+    { name: 'USER_CORE', path: '.self/USER_CORE.md' },
+    { name: 'USER_CONTEXT', path: '.self/USER_CONTEXT.md' },
     // EXPERIENCE.md is optional/dynamic
   ];
 
@@ -26,7 +26,7 @@ export async function loadCompleteIdentity(): Promise<string> {
 
   for (const file of files) {
     try {
-      const filePath = await PathGuard.validatePath(file.path, 'read');
+      const filePath = await PathGuard.validatePath(rootDir, file.path, 'read');
       const content = await fs.readFile(filePath, 'utf-8');
       fullIdentity += `\n\n# ${file.name}\n${content.trim()}`;
     } catch (e: any) {
@@ -39,7 +39,7 @@ export async function loadCompleteIdentity(): Promise<string> {
 
   // Attempt to load EXPERIENCE if it exists
   try {
-    const expPath = await PathGuard.validatePath('brain/EXPERIENCE.md', 'read');
+    const expPath = await PathGuard.validatePath(rootDir, '.self/EXPERIENCE.md', 'read');
     const experience = await fs.readFile(expPath, 'utf-8');
     fullIdentity += `\n\n# EXPERIENCE\n${experience.trim()}`;
   } catch {
@@ -47,4 +47,18 @@ export async function loadCompleteIdentity(): Promise<string> {
   }
 
   return fullIdentity.trim();
+}
+
+export async function assemblePrompt(rootDir: string): Promise<string> {
+  const identity = await loadCompleteIdentity(rootDir);
+  const agentName = await getAgentName(rootDir);
+  
+  return `You are ${agentName}, an autonomous AI coding agent.
+
+${identity}
+
+You have access to tools for file operations, shell commands, and self-modification through mutation.
+When uncertain, ask clarifying questions. When confident, act autonomously within your constitutional bounds.
+
+Your current working directory is: ${rootDir}`;
 }
