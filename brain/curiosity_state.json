@@ -1,6 +1,17 @@
 {
   "baseCuriosity": 5,
-  "adjustedCuriosity": 5,
-  "adjustments": [],
-  "lastCalculated": "2026-02-14T02:59:18.332Z"
+  "adjustedCuriosity": 4.5,
+  "adjustments": [
+    {
+      "timestamp": "2026-02-14T12:37:37.849Z",
+      "reason": "User Feedback: positive",
+      "delta": 0.5
+    },
+    {
+      "timestamp": "2026-02-14T12:37:37.850Z",
+      "reason": "User Feedback: negative",
+      "delta": -1
+    }
+  ],
+  "lastCalculated": "2026-02-14T12:37:37.850Z"
 }

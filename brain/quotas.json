@@ -5,8 +5,8 @@
     "alerts": []
   },
   "tokens": {
-    "today": 0,
-    "month": 0,
+    "today": 100,
+    "month": 100,
     "maxPerDay": 100000,
     "maxPerMonth": 2000000,
     "resetDaily": "2026-02-14",
