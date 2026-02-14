@@ -1,0 +1,44 @@
+{
+  "name": "@hatchling/core",
+  "version": "0.1.0",
+  "description": "An autonomous AI agent that learns, mutates, and evolves",
+  "type": "module",
+  "main": "src/extension.ts",
+  "bin": {
+    "hatchling": "./bin/hatchling"
+  },
+  "files": [
+    "bin",
+    "src",
+    "brain",
+    "memory",
+    "limbs",
+    "projects"
+  ],
+  "scripts": {
+    "test": "bun test tests/",
+    "build": "echo 'Using Bun - no build step needed'",
+    "dev": "pi --extension ./src/extension.ts"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "evolution",
+    "coding-agent",
+    "pi-extension"
+  ],
+  "author": "Hatchling Organism",
+  "license": "MIT",
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "bun-types": "latest",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@types/inquirer": "^9.0.9",
+    "inquirer": "^13.2.2"
+  }
+}

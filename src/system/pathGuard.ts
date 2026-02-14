@@ -1,12 +1,5 @@
 import path from 'path';
 import fs from 'fs/promises';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Core path (hatchling-core/system/.. -> hatchling-core/)
-const AGENT_ROOT = path.resolve(__dirname, '..');
 
 const PROTECTED_FILES = [
   'brain/CONSTITUTION.md',
@@ -25,10 +18,6 @@ export class ProtectedFileError extends Error {
 
 export class PathGuard {
   
-  static getAgentRoot(): string {
-    return AGENT_ROOT;
-  }
-
   static isProtected(relativePath: string): boolean {
     // Normalize path separators for cross-platform check
     const normalized = relativePath.split(path.sep).join('/');
@@ -40,6 +29,7 @@ export class PathGuard {
    * Ensures the path is inside the agent territory and not protected (for writes).
    */
   static async validatePath(
+    rootDir: string,
     requestedPath: string,
     operation: 'read' | 'write' = 'read'
   ): Promise<string> {
@@ -47,18 +37,18 @@ export class PathGuard {
     // 1. Resolve to absolute path
     const absolute = path.isAbsolute(requestedPath)
       ? path.normalize(requestedPath)
-      : path.resolve(AGENT_ROOT, requestedPath);
+      : path.resolve(rootDir, requestedPath);
     
     // 2. Ensure it's inside the territory
-    if (!absolute.startsWith(AGENT_ROOT)) {
-      throw new Error(`Access Denied: Path ${absolute} is outside territory ${AGENT_ROOT}`);
+    if (!absolute.startsWith(rootDir)) {
+      throw new Error(`Access Denied: Path ${absolute} is outside territory ${rootDir}`);
     }
 
     // 3. Resolve any symlinks (real path check)
     // We only check this for existing files to prevent symlink attacks
     try {
       const realPath = await fs.realpath(absolute);
-      if (!realPath.startsWith(AGENT_ROOT)) {
+      if (!realPath.startsWith(rootDir)) {
         throw new Error(`Access Denied: Symlink ${absolute} points outside territory`);
       }
     } catch (error: any) {
@@ -71,7 +61,7 @@ export class PathGuard {
 
     // 4. Check protected files (Write operation only)
     if (operation === 'write') {
-      const relative = path.relative(AGENT_ROOT, absolute);
+      const relative = path.relative(rootDir, absolute);
       if (this.isProtected(relative)) {
         throw new ProtectedFileError(relative);
       }

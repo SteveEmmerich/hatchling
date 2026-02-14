@@ -1,0 +1,19 @@
+#!/usr/bin/env bun
+import { spawn } from "child_process";
+import { resolve, dirname } from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const extensionPath = resolve(__dirname, "../src/extension.ts");
+
+// Launch pi with the Hatchling extension
+const args = ["pi", "--extension", extensionPath, ...process.argv.slice(2)];
+
+const child = spawn("bun", args, {
+  stdio: "inherit",
+  cwd: process.cwd(),
+});
+
+child.on("exit", (code) => {
+  process.exit(code || 0);
+});
