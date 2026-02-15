@@ -1,5 +1,6 @@
-import { spawn } from "child_process";
-import path from "path";
+import { createAgentSession, createCodingTools } from "@mariozechner/pi-coding-agent";
+import { getModel } from "@mariozechner/pi-ai";
+import { TUI, Input, Text, Box, Markdown } from "@mariozechner/pi-tui";
 import { text, multiselect, confirm } from "@clack/prompts";
 
 export interface ConversationData {
@@ -47,66 +48,44 @@ export async function runDiscoveryConversation(
   model: string,
   rootDir: string
 ): Promise<ConversationData | null> {
-  return new Promise((resolve, reject) => {
-    console.log("\n🎭 Starting self-discovery conversation...\n");
+  try {
+    console.log("\n🎭 Starting self-discovery conversation with LLM...\n");
 
-    // Try to spawn pi-tui first
-    const piTui = spawn("bun", ["pi-tui", "--provider", provider, "--model", model], {
-      stdio: ["inherit", "pipe", "inherit"],
-      cwd: rootDir,
+    // Create agent session with the selected model
+    const llmModel = getModel(provider, model);
+    const { session } = await createAgentSession({
+      model: llmModel,
+      workingDirectory: rootDir,
+      tools: [], // No tools needed for this conversation
     });
 
-    let output = "";
-    let conversationComplete = false;
-    let errorOccurred = false;
+    // System prompt for identity discovery
+    const systemPrompt = DISCOVERY_PROMPT;
 
-    // Collect output from pi-tui
-    piTui.stdout.on("data", (data: Buffer) => {
-      const chunk = data.toString();
-      output += chunk;
-      process.stdout.write(chunk); // Show to user in real-time
+    // Run the conversation
+    const response = await session.prompt({
+      systemPrompt,
+      userPrompt: "Let's begin the conversation to discover my identity. Please start by asking me about my purpose.",
     });
 
-    piTui.on("close", (code) => {
-      if (errorOccurred) return; // Already handled in error event
-      
-      if (code === 0 && !conversationComplete) {
-        // Try to parse JSON from output
-        try {
-          // Look for JSON block in output
-          const jsonMatch = output.match(/```json\s*(\{[\s\S]*?\})\s*```/);
-          if (jsonMatch) {
-            const conversationData = JSON.parse(jsonMatch[1]) as ConversationData;
-            conversationComplete = true;
-            resolve(conversationData);
-          } else {
-            resolve(null);
-          }
-        } catch (error) {
-          resolve(null);
-        }
-      } else if (code !== 0) {
-        resolve(null);
+    // Parse the conversation result
+    if (response && response.text) {
+      // Look for JSON in the response
+      const jsonMatch = response.text.match(/```json\s*(\{[\s\S]*?\})\s*```/);
+      if (jsonMatch) {
+        const conversationData = JSON.parse(jsonMatch[1]) as ConversationData;
+        console.log("\n✨ Identity discovered from conversation!\n");
+        return conversationData;
       }
-    });
+    }
 
-    piTui.on("error", (error) => {
-      errorOccurred = true;
-      if ((error as any).code === "ENOENT") {
-        console.log("⚠️  pi-tui not available. Using guided prompts instead.\n");
-      }
-      // Fall through to guided prompts
-      resolve(null);
-    });
-
-    // Timeout after 5 minutes
-    setTimeout(() => {
-      if (!conversationComplete && !errorOccurred) {
-        piTui.kill();
-        resolve(null);
-      }
-    }, 300000);
-  });
+    console.log("\n⚠️  Could not parse conversation. Using guided prompts.\n");
+    return null;
+  } catch (error) {
+    console.log(`\n⚠️  Error with LLM conversation: ${error instanceof Error ? error.message : String(error)}\n`);
+    console.log("Falling back to guided prompts...\n");
+    return null;
+  }
 }
 
 export async function runInteractiveDiscovery(
