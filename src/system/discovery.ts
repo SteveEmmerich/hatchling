@@ -1,6 +1,5 @@
-import { createAgentSession, createCodingTools } from "@mariozechner/pi-coding-agent";
+import { Agent } from "@mariozechner/pi-agent-core";
 import { getModel } from "@mariozechner/pi-ai";
-import { TUI, Input, Text, Box, Markdown } from "@mariozechner/pi-tui";
 import { text, multiselect, confirm } from "@clack/prompts";
 
 export interface ConversationData {
@@ -51,32 +50,49 @@ export async function runDiscoveryConversation(
   try {
     console.log("\n🎭 Starting self-discovery conversation with LLM...\n");
 
-    // Create agent session with the selected model
+    // Get the model
     const llmModel = getModel(provider, model);
-    const { session } = await createAgentSession({
-      model: llmModel,
-      workingDirectory: rootDir,
-      tools: [], // No tools needed for this conversation
+    
+    // Create agent with system prompt
+    const agent = new Agent({
+      initialState: {
+        systemPrompt: DISCOVERY_PROMPT,
+        model: llmModel,
+        tools: [], // No tools needed
+      },
     });
 
-    // System prompt for identity discovery
-    const systemPrompt = DISCOVERY_PROMPT;
+    // Collect the assistant's response
+    let assistantResponse = "";
+    let conversationComplete = false;
 
-    // Run the conversation
-    const response = await session.prompt({
-      systemPrompt,
-      userPrompt: "Let's begin the conversation to discover my identity. Please start by asking me about my purpose.",
-    });
-
-    // Parse the conversation result
-    if (response && response.text) {
-      // Look for JSON in the response
-      const jsonMatch = response.text.match(/```json\s*(\{[\s\S]*?\})\s*```/);
-      if (jsonMatch) {
-        const conversationData = JSON.parse(jsonMatch[1]) as ConversationData;
-        console.log("\n✨ Identity discovered from conversation!\n");
-        return conversationData;
+    // Subscribe to agent events
+    agent.subscribe((event) => {
+      if (event.type === "message") {
+        const msg = event.message;
+        if (msg.role === "assistant" && msg.content) {
+          assistantResponse += msg.content;
+          process.stdout.write(msg.content); // Show in real-time
+        }
+      } else if (event.type === "idle") {
+        conversationComplete = true;
       }
+    });
+
+    // Start the conversation
+    await agent.prompt(
+      "Let's begin the conversation to discover my identity. Please start by asking me about my purpose."
+    );
+
+    // Wait for completion
+    await agent.waitForIdle();
+
+    // Parse the response for JSON
+    const jsonMatch = assistantResponse.match(/```json\s*(\{[\s\S]*?\})\s*```/);
+    if (jsonMatch) {
+      const conversationData = JSON.parse(jsonMatch[1]) as ConversationData;
+      console.log("\n✨ Identity discovered from conversation!\n");
+      return conversationData;
     }
 
     console.log("\n⚠️  Could not parse conversation. Using guided prompts.\n");
