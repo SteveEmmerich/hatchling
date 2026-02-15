@@ -1,8 +1,5 @@
 {
   "mutationsThisCycle": 0,
-  "mutationsToday": 0,
-  "lastReset": "2026-02-14",
-  "totalMutations": 0,
-  "successfulMutations": 0,
-  "failedMutations": 0
+  "dailyCap": 3,
+  "lastReset": "2026-02-14T23:46:31.400Z"
 }
