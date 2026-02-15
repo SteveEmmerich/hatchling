@@ -53,8 +53,15 @@ export async function runDiscoveryConversation(
   try {
     console.log("\n🎭 Starting self-discovery conversation with LLM...\n");
 
-    // Get the model
-    const llmModel = getModel(provider, model);
+    // Get the model - debug the values
+    console.log(`Provider: ${provider}, Model: ${model}`);
+    const llmModel = getModel(provider as any, model as any);
+    
+    if (!llmModel) {
+      throw new Error(`Failed to get model: ${provider}/${model}`);
+    }
+    
+    console.log(`Using model: ${llmModel.id} from ${llmModel.provider}`);
     
     // Create agent with system prompt
     const agent = new Agent({
