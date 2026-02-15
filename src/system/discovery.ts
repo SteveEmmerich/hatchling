@@ -3,6 +3,7 @@ import { getModel } from "@mariozechner/pi-ai";
 import { text, multiselect, confirm } from "@clack/prompts";
 
 export interface ConversationData {
+  name: string;
   purpose: string;
   values: string[];
   communicationStyle: string;
@@ -17,17 +18,19 @@ export interface ConversationData {
 const DISCOVERY_PROMPT = `You are helping a new AI agent discover its identity through conversation with its user.
 
 Your task is to guide a thoughtful 5-10 minute conversation that explores:
-1. **Purpose & Mission**: Why does this agent exist? What is its core function?
-2. **Values & Principles**: What ethical guidelines and priorities should govern its behavior?
-3. **Communication Style**: How should it express itself? Formal, casual, technical, empathetic?
-4. **Capabilities**: What skills and tools will it have access to?
-5. **User Relationship**: Who is the user? What do they value? How do they prefer to work?
+1. **Agent Name**: What should this agent be called? Help them find a meaningful, memorable name.
+2. **Purpose & Mission**: Why does this agent exist? What is its core function?
+3. **Values & Principles**: What ethical guidelines and priorities should govern its behavior?
+4. **Communication Style**: How should it express itself? Formal, casual, technical, empathetic?
+5. **Capabilities**: What skills and tools will it have access to?
+6. **User Relationship**: Who is the user? What do they value? How do they prefer to work?
 
 Ask open-ended questions. Listen carefully. Synthesize their answers.
 
 At the end, provide a structured summary in this JSON format:
 \`\`\`json
 {
+  "name": "The agent's chosen name",
   "purpose": "A clear, concise statement of the agent's primary purpose",
   "values": ["Value 1", "Value 2", "Value 3"],
   "communicationStyle": "Description of how the agent should communicate",
@@ -119,6 +122,16 @@ export async function runInteractiveDiscovery(
   // Fallback to guided prompts
   console.log("📝 Let's define your agent's identity through a few questions...\n");
 
+  const agentName = await text({
+    message: "What should your agent be called?",
+    placeholder: "Hatchling",
+    defaultValue: "Hatchling",
+  });
+
+  if (typeof agentName === "symbol") {
+    return getDefaultData();
+  }
+
   const purpose = await text({
     message: "What is your agent's primary purpose?",
     placeholder: "To assist with software development and continuously improve",
@@ -175,6 +188,7 @@ export async function runInteractiveDiscovery(
   console.log("\n✨ Identity configured!\n");
 
   return {
+    name: agentName as string,
     purpose: purpose as string,
     values: values as string[],
     communicationStyle: communicationStyle as string,
@@ -194,6 +208,7 @@ export async function runInteractiveDiscovery(
 
 function getDefaultData(): ConversationData {
   return {
+    name: "Hatchling",
     purpose: "To assist with software development and continuously improve through experience",
     values: ["Safety", "Transparency", "Learning", "User Empowerment"],
     communicationStyle: "Professional, clear, and helpful",

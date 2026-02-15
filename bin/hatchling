@@ -93,34 +93,21 @@ const main = defineCommand({
           process.exit(0);
         }
 
-        // Step 3: Agent Name
-        const agentName = await text({
-          message: "What should I call myself?",
-          placeholder: "Hatchling",
-          defaultValue: "Hatchling",
-        });
-
-        if (typeof agentName === "symbol") {
-          outro("Initialization cancelled");
-          process.exit(0);
-        }
-
-        // Step 4: Use pi-tui for self-discovery conversation
-        s.start("Creating your identity...");
+        // Step 3: Self-discovery conversation (includes name discovery)
+        s.start("Starting self-discovery conversation...");
         
         const { runSelfDiscovery } = await import("../src/system/onboard.js");
-        await runSelfDiscovery(
+        const agentName = await runSelfDiscovery(
           {
             provider: provider as string,
             model: model as string,
-            agentName: agentName as string,
           },
           process.cwd()
         );
         
         s.stop("Identity created");
         
-        outro(`✨ Initialization complete! Your ${agentName} is ready to hatch.
+        outro(`✨ Initialization complete! ${agentName} is ready to hatch.
 
 Run 'hatchling start' to begin your journey.`);
       },

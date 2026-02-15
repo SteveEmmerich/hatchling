@@ -6,23 +6,24 @@ import { generateDNAFiles } from "./dna-generator.js";
 interface OnboardingConfig {
   provider: string;
   model: string;
-  agentName: string;
 }
 
-export async function runSelfDiscovery(config: OnboardingConfig, rootDir: string): Promise<void> {
+export async function runSelfDiscovery(config: OnboardingConfig, rootDir: string): Promise<string> {
   // Create .self directory
   const selfDir = path.join(rootDir, ".self");
   await fs.mkdir(selfDir, { recursive: true });
 
-  // Run interactive discovery conversation
+  // Run interactive discovery conversation (includes name)
   const conversationData = await runInteractiveDiscovery(
     config.provider,
     config.model,
     rootDir
   );
 
+  const agentName = conversationData.name;
+
   // Generate DNA files from conversation
-  await generateDNAFiles(selfDir, config.agentName, conversationData);
+  await generateDNAFiles(selfDir, agentName, conversationData);
   
   // Create config in brain directory
   const brainDir = path.join(rootDir, "brain");
@@ -35,7 +36,7 @@ export async function runSelfDiscovery(config: OnboardingConfig, rootDir: string
       {
         model: config.model,
         provider: config.provider,
-        agentName: config.agentName,
+        agentName: agentName,
         curiosityLevel: 5,
         maxDailyMutations: 3,
         quotas: {
@@ -73,4 +74,6 @@ export async function runSelfDiscovery(config: OnboardingConfig, rootDir: string
       cpu: { limit: 50 },
     }, null, 2)
   );
+
+  return agentName;
 }
