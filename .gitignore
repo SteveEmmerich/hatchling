@@ -5,3 +5,4 @@ daemon.pid
 *.tmp
 memory/telemetry/
 memory/backups/
+dist/
