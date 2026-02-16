@@ -3,7 +3,7 @@ import fs from 'fs/promises';
 
 export async function getAgentName(rootDir: string): Promise<string> {
   try {
-    const configPath = await PathGuard.validatePath(rootDir, 'brain/config.json', 'read');
+    const configPath = await PathGuard.validatePath('brain/config.json', 'read');
     const config = await Bun.file(configPath).json();
     return config.agentName || 'Hatchling';
   } catch {
@@ -26,7 +26,7 @@ export async function loadCompleteIdentity(rootDir: string): Promise<string> {
 
   for (const file of files) {
     try {
-      const filePath = await PathGuard.validatePath(rootDir, file.path, 'read');
+      const filePath = await PathGuard.validatePath(file.path, 'read');
       const content = await fs.readFile(filePath, 'utf-8');
       fullIdentity += `\n\n# ${file.name}\n${content.trim()}`;
     } catch (e: any) {
@@ -39,7 +39,7 @@ export async function loadCompleteIdentity(rootDir: string): Promise<string> {
 
   // Attempt to load EXPERIENCE if it exists
   try {
-    const expPath = await PathGuard.validatePath(rootDir, '.self/EXPERIENCE.md', 'read');
+    const expPath = await PathGuard.validatePath('.self/EXPERIENCE.md', 'read');
     const experience = await fs.readFile(expPath, 'utf-8');
     fullIdentity += `\n\n# EXPERIENCE\n${experience.trim()}`;
   } catch {

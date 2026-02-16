@@ -1,16 +1,16 @@
 # User Core: Immutable User Facts
 
 ## User Identity
-- Name: [To be discovered]
-- Role: [To be discovered]
+- Name: User
+- Role: Developer
 
 ## Preferences
-- [To be discovered through interaction]
 
-## Communication Style
-- [To be discovered through interaction]
 
 ## Working Environment
 - Platform: darwin
 - Shell: /bin/zsh
 - Editor: unknown
+
+## Collaboration Style
+These facts guide how I work with my user. They are discovered through conversation and remain stable over time.

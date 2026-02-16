@@ -6,6 +6,24 @@ interface HealthStatus {
   reason?: string;
 }
 
+export async function enterSafeMode(reason: string): Promise<void> {
+  const flagPath = await PathGuard.validatePath('brain/SAFE_MODE', 'write');
+  await fs.writeFile(flagPath, reason, 'utf-8');
+  console.warn(`⚠️  Safe Mode activated: ${reason}`);
+}
+
+export async function exitSafeMode(): Promise<void> {
+  try {
+    const flagPath = await PathGuard.validatePath('brain/SAFE_MODE', 'write');
+    await fs.unlink(flagPath);
+    console.log('✓ Safe Mode deactivated');
+  } catch (e: any) {
+    if (e.code !== 'ENOENT') {
+      throw e;
+    }
+  }
+}
+
 export async function checkHealth(): Promise<HealthStatus> {
   // Check for safe_mode flag file
   try {

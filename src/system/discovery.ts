@@ -1,6 +1,8 @@
-import { Agent } from "@mariozechner/pi-agent-core";
-import { getModel } from "@mariozechner/pi-ai";
+import { Agent, type Model } from "@mariozechner/pi-agent-core";
 import { text, multiselect, confirm } from "@clack/prompts";
+import { createOllamaStreamFn } from "./ollama-stream.js";
+import { runOllamaDiscovery } from "./ollama-discovery.js";
+import { logEvent } from "./telemetry.js";
 
 export interface ConversationData {
   name: string;
@@ -53,63 +55,164 @@ export async function runDiscoveryConversation(
   try {
     console.log("\n🎭 Starting self-discovery conversation with LLM...\n");
 
-    // Get the model - debug the values
-    console.log(`Provider: ${provider}, Model: ${model}`);
-    const llmModel = getModel(provider as any, model as any);
+    if (provider === "ollama") {
+      // Use direct Ollama SDK integration
+      const modelMap: Record<string, string> = {
+        "deepseek-r1:1.5b": "deepseek-r1:1.5b",
+        "llama3.1:8b": "llama3.1:8b",
+        "qwen2.5-coder:7b": "qwen2.5-coder:7b",
+      };
+      
+      const modelId = modelMap[model] || model;
+      console.log(`Using ${provider} model: ${modelId}\n`);
+      
+      await logEvent(rootDir, "info", "Starting Ollama discovery", { provider, model: modelId });
+      
+      // Run the Ollama-specific discovery conversation
+      // The LLM will help discover the name through conversation
+      const result = await runOllamaDiscovery(modelId, "Hatchling", rootDir);
+      
+      // Convert to ConversationData format
+      return {
+        name: result.name || "New Agent",
+        purpose: result.purpose,
+        values: result.values,
+        communicationStyle: result.personality,
+        capabilities: result.preferences,
+        userFacts: {}
+      };
+    } else {
+      // For cloud providers, use pi-agent-core with API keys
+      console.log(`Using ${provider} model: ${model}\n`);
     
-    if (!llmModel) {
-      throw new Error(`Failed to get model: ${provider}/${model}`);
+    // Get API key from environment
+    let apiKey: string | undefined;
+    let apiKeyEnvVar: string;
+    
+    switch (provider) {
+      case "anthropic":
+        apiKeyEnvVar = "ANTHROPIC_API_KEY";
+        apiKey = process.env.ANTHROPIC_API_KEY;
+        break;
+      case "openai":
+        apiKeyEnvVar = "OPENAI_API_KEY";
+        apiKey = process.env.OPENAI_API_KEY;
+        break;
+      case "google":
+        apiKeyEnvVar = "GOOGLE_API_KEY";
+        apiKey = process.env.GOOGLE_API_KEY;
+        break;
+      default:
+        throw new Error(`Unsupported provider: ${provider}`);
     }
     
-    console.log(`Using model: ${llmModel.id} from ${llmModel.provider}`);
+    if (!apiKey) {
+      throw new Error(`${apiKeyEnvVar} environment variable not set. Please set it to use ${provider}.`);
+    }
     
-    // Create agent with system prompt
+    // Create model configuration for cloud providers
+    const llmModel: Model = {
+      id: model,
+      api: provider as any,
+      provider: provider,
+      contextWindow: 200000, // Conservative default
+      maxTokens: 4096,
+      reasoning: false,
+      input: ["text"],
+      cost: { input: 0.003, output: 0.015, cacheRead: 0, cacheWrite: 0 } // Approximate
+    };
+    
+    await logEvent(rootDir, "info", "Starting cloud provider discovery", { provider, model });
+    
+    // Use pi-agent-core's built-in support for cloud providers
     const agent = new Agent({
-      initialState: {
-        systemPrompt: DISCOVERY_PROMPT,
-        model: llmModel,
-        tools: [], // No tools needed
-      },
+      model: llmModel,
+      apiKey: apiKey,
+      systemPrompt: DISCOVERY_PROMPT
     });
-
-    // Collect the assistant's response
-    let assistantResponse = "";
-    let conversationComplete = false;
-
-    // Subscribe to agent events
-    agent.subscribe((event) => {
-      if (event.type === "message") {
-        const msg = event.message;
-        if (msg.role === "assistant" && msg.content) {
-          assistantResponse += msg.content;
-          process.stdout.write(msg.content); // Show in real-time
+    
+    const conversationHistory: Array<{ role: string; content: string }> = [];
+    
+    console.log("🤖 Starting discovery conversation...\n");
+    
+    // Run conversation loop
+    let complete = false;
+    let jsonData: any = null;
+    
+    while (!complete) {
+      const stream = agent.run({
+        messages: conversationHistory.map(msg => ({
+          role: msg.role as "user" | "assistant",
+          content: msg.content
+        }))
+      });
+      
+      let agentMessage = "";
+      for await (const event of stream) {
+        if (event.type === "text") {
+          agentMessage += event.text;
+          process.stdout.write(event.text);
+        } else if (event.type === "done") {
+          agentMessage = event.message.content;
         }
-      } else if (event.type === "idle") {
-        conversationComplete = true;
       }
-    });
-
-    // Start the conversation
-    await agent.prompt(
-      "Let's begin the conversation to discover my identity. Please start by asking me about my purpose."
-    );
-
-    // Wait for completion
-    await agent.waitForIdle();
-
-    // Parse the response for JSON
-    const jsonMatch = assistantResponse.match(/```json\s*(\{[\s\S]*?\})\s*```/);
-    if (jsonMatch) {
-      const conversationData = JSON.parse(jsonMatch[1]) as ConversationData;
-      console.log("\n✨ Identity discovered from conversation!\n");
-      return conversationData;
+      
+      console.log("\n");
+      conversationHistory.push({ role: "assistant", content: agentMessage });
+      
+      // Check if we have JSON summary
+      const jsonMatch = agentMessage.match(/```json\n([\s\S]+?)\n```/);
+      if (jsonMatch) {
+        try {
+          jsonData = JSON.parse(jsonMatch[1]);
+          complete = true;
+        } catch (e) {
+          console.log("⚠️  Failed to parse JSON, continuing conversation...\n");
+        }
+      }
+      
+      if (!complete) {
+        const userInput = await text({
+          message: "You",
+          placeholder: "Type your response..."
+        });
+        
+        if (typeof userInput === "symbol" || !userInput) {
+          complete = true;
+          break;
+        }
+        
+        conversationHistory.push({ role: "user", content: userInput });
+      }
     }
-
-    console.log("\n⚠️  Could not parse conversation. Using guided prompts.\n");
-    return null;
+    
+    if (!jsonData) {
+      throw new Error("Failed to complete discovery conversation");
+    }
+    
+    return {
+      name: jsonData.name || "New Agent",
+      purpose: jsonData.purpose || "A helpful AI assistant",
+      values: jsonData.values || [],
+      communicationStyle: jsonData.communicationStyle || "Professional and helpful",
+      capabilities: jsonData.capabilities || [],
+      userFacts: jsonData.userFacts || {}
+    };
+  }
   } catch (error) {
-    console.log(`\n⚠️  Error with LLM conversation: ${error instanceof Error ? error.message : String(error)}\n`);
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    console.log(`\n⚠️  Error with LLM conversation: ${errorMsg}\n`);
+    if (errorStack) {
+      console.log(`[ERROR STACK]\n${errorStack}\n`);
+    }
     console.log("Falling back to guided prompts...\n");
+    await logEvent(rootDir, "error", "LLM discovery failed", { 
+      error: errorMsg, 
+      stack: errorStack,
+      provider,
+      model 
+    });
     return null;
   }
 }

@@ -1,5 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
+import os from "os";
 import { runInteractiveDiscovery } from "./discovery.js";
 import { generateDNAFiles } from "./dna-generator.js";
 
@@ -8,27 +9,51 @@ interface OnboardingConfig {
   model: string;
 }
 
-export async function runSelfDiscovery(config: OnboardingConfig, rootDir: string): Promise<string> {
-  // Create .self directory
-  const selfDir = path.join(rootDir, ".self");
-  await fs.mkdir(selfDir, { recursive: true });
-
-  // Run interactive discovery conversation (includes name)
+export async function runSelfDiscovery(config: OnboardingConfig): Promise<{ name: string; instanceDir: string }> {
+  // Step 1: Create a temporary directory for discovery telemetry
+  const tempDir = path.join(os.tmpdir(), `hatchling-discovery-${Date.now()}`);
+  await fs.mkdir(path.join(tempDir, "memory", "telemetry"), { recursive: true });
+  
+  // Run discovery to get the agent's name first
   const conversationData = await runInteractiveDiscovery(
     config.provider,
     config.model,
-    rootDir
+    tempDir
   );
+  
+  // Clean up temp directory
+  await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
 
   const agentName = conversationData.name;
 
-  // Generate DNA files from conversation
+  // Step 2: Create instance directory in user's home
+  const instanceDir = path.join(os.homedir(), `.hatchling-${agentName.toLowerCase()}`);
+  await fs.mkdir(instanceDir, { recursive: true });
+
+  // Step 3: Create required subdirectories
+  const selfDir = path.join(instanceDir, ".self");
+  const brainDir = path.join(instanceDir, "brain");
+  const memoryDir = path.join(instanceDir, "memory");
+  const limbsDir = path.join(instanceDir, "limbs");
+  const limbsStagingDir = path.join(instanceDir, "limbs_staging");
+  const projectsDir = path.join(instanceDir, "projects");
+
+  await Promise.all([
+    fs.mkdir(selfDir, { recursive: true }),
+    fs.mkdir(brainDir, { recursive: true }),
+    fs.mkdir(path.join(memoryDir, "daily"), { recursive: true }),
+    fs.mkdir(path.join(memoryDir, "sleep_logs"), { recursive: true }),
+    fs.mkdir(path.join(memoryDir, "telemetry"), { recursive: true }),
+    fs.mkdir(path.join(memoryDir, "backups"), { recursive: true }),
+    fs.mkdir(limbsDir, { recursive: true }),
+    fs.mkdir(limbsStagingDir, { recursive: true }),
+    fs.mkdir(projectsDir, { recursive: true }),
+  ]);
+
+  // Step 4: Generate DNA files from conversation
   await generateDNAFiles(selfDir, agentName, conversationData);
-  
-  // Create config in brain directory
-  const brainDir = path.join(rootDir, "brain");
-  await fs.mkdir(brainDir, { recursive: true });
-  
+
+  // Step 5: Create config in brain directory
   const configPath = path.join(brainDir, "config.json");
   await fs.writeFile(
     configPath,
@@ -50,7 +75,7 @@ export async function runSelfDiscovery(config: OnboardingConfig, rootDir: string
     )
   );
 
-  // Initialize other state files
+  // Step 6: Initialize state files
   await fs.writeFile(
     path.join(brainDir, "mutation_state.json"),
     JSON.stringify({ mutationsThisCycle: 0, dailyCap: 3, lastReset: new Date().toISOString() }, null, 2)
@@ -75,5 +100,20 @@ export async function runSelfDiscovery(config: OnboardingConfig, rootDir: string
     }, null, 2)
   );
 
-  return agentName;
+  // Step 7: Initialize git repository
+  const { exec } = await import("child_process");
+  const { promisify } = await import("util");
+  const execAsync = promisify(exec);
+
+  try {
+    await execAsync("git init", { cwd: instanceDir });
+    await execAsync('git config user.name "Hatchling Organism"', { cwd: instanceDir });
+    await execAsync('git config user.email "hatchling@local"', { cwd: instanceDir });
+    await execAsync("git add .", { cwd: instanceDir });
+    await execAsync('git commit -m "Genesis: Constitutional DNA established\n\nCo-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"', { cwd: instanceDir });
+  } catch (error) {
+    console.warn("Git initialization failed:", error);
+  }
+
+  return { name: agentName, instanceDir };
 }

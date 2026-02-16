@@ -17,8 +17,9 @@
   ],
   "scripts": {
     "test": "bun test tests/",
-    "build": "echo 'Using Bun - no build step needed'",
-    "dev": "pi --extension ./src/extension.ts"
+    "build": "tsc",
+    "dev": "bun run build && pi --extension ./dist/extension.js",
+    "prepare": "bun run build"
   },
   "keywords": [
     "ai",
@@ -43,6 +44,7 @@
     "@mariozechner/pi-tui": "^0.52.12",
     "@types/inquirer": "^9.0.9",
     "citty": "^0.2.1",
-    "inquirer": "^13.2.2"
+    "inquirer": "^13.2.2",
+    "ollama": "^0.6.3"
   }
 }

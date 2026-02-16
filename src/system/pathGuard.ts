@@ -17,6 +17,15 @@ export class ProtectedFileError extends Error {
 }
 
 export class PathGuard {
+  private static rootDir: string = process.cwd();
+
+  static setRoot(root: string) {
+    this.rootDir = root;
+  }
+
+  static getRoot(): string {
+    return this.rootDir;
+  }
   
   static isProtected(relativePath: string): boolean {
     // Normalize path separators for cross-platform check
@@ -29,10 +38,10 @@ export class PathGuard {
    * Ensures the path is inside the agent territory and not protected (for writes).
    */
   static async validatePath(
-    rootDir: string,
     requestedPath: string,
     operation: 'read' | 'write' = 'read'
   ): Promise<string> {
+    const rootDir = this.rootDir;
     
     // 1. Resolve to absolute path
     const absolute = path.isAbsolute(requestedPath)
@@ -47,12 +56,16 @@ export class PathGuard {
     // 3. Resolve any symlinks (real path check)
     // We only check this for existing files to prevent symlink attacks
     try {
+      // Check if the file/directory exists first
+      const stats = await fs.stat(absolute);
       const realPath = await fs.realpath(absolute);
       if (!realPath.startsWith(rootDir)) {
         throw new Error(`Access Denied: Symlink ${absolute} points outside territory`);
       }
+      // Return the real path for existing files
+      return realPath;
     } catch (error: any) {
-      // If file doesn't exist, we can't check realpath, but that's fine for new files
+      // If file doesn't exist (ENOENT), that's okay for writes or optional reads
       // providing the parent directory is valid.
       if (error.code !== 'ENOENT') {
         throw error;

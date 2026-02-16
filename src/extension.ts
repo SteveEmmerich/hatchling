@@ -1,36 +1,67 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { performSleep } from "./system/sleep.js";
-import { mutate } from "./system/mutate.js";
-import { amputate } from "./system/amputate.js";
-import { getVitals } from "./system/vitals.js";
-import { recordFeedback } from "./system/feedback.js";
-import { toggleDebugMode } from "./system/debug.js";
-import { checkHealth, enterSafeMode } from "./system/health.js";
-import { assemblePrompt } from "./system/soul.js";
-import { startPulseDaemon, stopPulseDaemon } from "./system/pulse_daemon.js";
 
 export default function (pi: ExtensionAPI) {
+  // Use instance path from environment, fallback to cwd
+  const rootDir = process.env.HATCHLING_INSTANCE_PATH || process.cwd();
+  
   // Health check on session start
   pi.on("session_start", async (ctx) => {
-    const health = await checkHealth(ctx.rootDir);
+    const { checkHealth, enterSafeMode } = await import("./system/health.js");
+    const { assemblePrompt } = await import("./system/soul.js");
+    const { runPulse } = await import("./system/pulse_daemon.js");
+    const { PathGuard } = await import("./system/pathGuard.js");
     
-    if (!health.healthy) {
-      enterSafeMode(ctx);
-      pi.log("⚠️  SAFE MODE: Last session had errors. Mutations disabled.");
+    // Initialize PathGuard with instance root
+    PathGuard.setRoot(rootDir);
+    
+    // Load config to set model
+    try {
+      const configPath = await PathGuard.validatePath('brain/config.json', 'read');
+      const config = await Bun.file(configPath).json();
+      
+      if (config.provider === 'ollama' && config.model) {
+        // Configure pi to use Ollama
+        ctx.setModel({
+          id: config.model,
+          provider: 'ollama',
+          baseURL: 'http://127.0.0.1:11434'
+        });
+        console.log(`🤖 Using Ollama model: ${config.model}`);
+      }
+    } catch (error) {
+      console.warn("Failed to load model config, using default:", (error as Error).message);
     }
     
-    // Assemble the system prompt with layered DNA
-    const systemPrompt = await assemblePrompt(ctx.rootDir);
-    ctx.setSystemPrompt(systemPrompt);
+    const health = await checkHealth();
     
-    // Start the Ghost Pulse daemon
-    await startPulseDaemon(ctx.rootDir);
+    if (health.safeMode) {
+      console.warn("⚠️  SAFE MODE: Last session had errors. Mutations disabled.");
+      console.warn(`Reason: ${health.reason || 'Unknown'}`);
+    }
     
-    pi.log("🥚 Hatchling initialized. Type /help for commands.");
+    // System prompt is injected via before_agent_start event (see below)
+    
+    // Note: Ghost Pulse would run as background daemon - not implemented yet
+    
+    console.log("🥚 Hatchling initialized. Type /help for commands.");
   });
 
   pi.on("session_end", async (ctx) => {
-    await stopPulseDaemon(ctx.rootDir);
+    // Cleanup if needed
+    console.log("👋 Hatchling session ended.");
+  });
+
+  // Inject custom system prompt before each agent call
+  pi.on("before_agent_start", async (ctx) => {
+    const { assemblePrompt } = await import("./system/soul.js");
+    
+    try {
+      const systemPrompt = await assemblePrompt(rootDir);
+      return { systemPrompt };
+    } catch (error) {
+      console.error("Failed to load system prompt:", error);
+      return {}; // Use default system prompt if loading fails
+    }
   });
 
   // Register commands
@@ -38,8 +69,9 @@ export default function (pi: ExtensionAPI) {
     description: "Perform deterministic sleep cycle: snapshot state, synthesize learnings, and commit evolution",
     execute: async (ctx, args) => {
       try {
-        const result = await performSleep(ctx.rootDir);
-        return { success: true, message: result };
+        const { sleep } = await import("./system/sleep.js");
+        await sleep();
+        return { success: true, message: "Sleep cycle completed" };
       } catch (error) {
         return { success: false, error: String(error) };
       }
@@ -57,8 +89,10 @@ export default function (pi: ExtensionAPI) {
       }
       
       try {
-        const result = await mutate(ctx.rootDir, name, description);
-        return { success: true, message: result };
+        const { MutationEngine } = await import("./system/mutate.js");
+        const engine = new MutationEngine();
+        await engine.createMutation(name, description);
+        return { success: true, message: `Mutation '${name}' created in limbs_staging` };
       } catch (error) {
         return { success: false, error: String(error) };
       }
@@ -69,8 +103,9 @@ export default function (pi: ExtensionAPI) {
     description: "Rollback last mutation and adjust curiosity",
     execute: async (ctx, args) => {
       try {
-        const result = await amputate(ctx.rootDir);
-        return { success: true, message: result };
+        const { amputate } = await import("./system/amputate.js");
+        await amputate();
+        return { success: true, message: "Rollback completed" };
       } catch (error) {
         return { success: false, error: String(error) };
       }
@@ -81,7 +116,8 @@ export default function (pi: ExtensionAPI) {
     description: "Show system health metrics and status",
     execute: async (ctx, args) => {
       try {
-        const vitals = await getVitals(ctx.rootDir);
+        const { getVitals } = await import("./system/vitals.js");
+        const vitals = await getVitals();
         return { success: true, data: vitals };
       } catch (error) {
         return { success: false, error: String(error) };
@@ -93,7 +129,8 @@ export default function (pi: ExtensionAPI) {
     description: "Mark recent behavior as positive (reinforcement learning)",
     execute: async (ctx, args) => {
       try {
-        await recordFeedback(ctx.rootDir, "positive", args.join(" "));
+        const { recordFeedback } = await import("./system/feedback.js");
+        await recordFeedback("positive", args.join(" "));
         return { success: true, message: "Positive feedback recorded 👍" };
       } catch (error) {
         return { success: false, error: String(error) };
@@ -105,7 +142,8 @@ export default function (pi: ExtensionAPI) {
     description: "Mark recent behavior as negative (reinforcement learning)",
     execute: async (ctx, args) => {
       try {
-        await recordFeedback(ctx.rootDir, "negative", args.join(" "));
+        const { recordFeedback } = await import("./system/feedback.js");
+        await recordFeedback("negative", args.join(" "));
         return { success: true, message: "Negative feedback recorded 👎" };
       } catch (error) {
         return { success: false, error: String(error) };
@@ -117,7 +155,12 @@ export default function (pi: ExtensionAPI) {
     description: "Toggle debug mode for detailed tracing",
     execute: async (ctx, args) => {
       try {
-        const enabled = await toggleDebugMode(ctx.rootDir);
+        const { Debugger } = await import("./system/debug.js");
+        const debug = new Debugger();
+        // Note: Debugger needs a toggle method implementation
+        return { success: true, message: `Debug mode status: ${debug.isDebugMode() ? 'ON' : 'OFF'}` };
+        const currentState = await Debugger.isDebug();
+        const enabled = await Debugger.toggle(!currentState);
         return { 
           success: true, 
           message: `Debug mode ${enabled ? "enabled" : "disabled"} 🔍` 
