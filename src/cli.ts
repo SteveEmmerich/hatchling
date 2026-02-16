@@ -18,44 +18,7 @@ const main = defineCommand({
       async run() {
         clack.intro("🥚 Hatchling Initialization");
 
-        // Prompt for instance name
-        const instanceName = await clack.text({
-          message: "What would you like to name this Hatchling instance?",
-          placeholder: "my-assistant",
-          defaultValue: "default",
-          validate: (value) => {
-            if (!value || value.trim().length === 0) {
-              return "Instance name is required";
-            }
-            if (!/^[a-z0-9-]+$/.test(value)) {
-              return "Instance name must contain only lowercase letters, numbers, and hyphens";
-            }
-            return undefined;
-          },
-        });
-
-        if (clack.isCancel(instanceName)) {
-          clack.outro("Cancelled");
-          process.exit(0);
-        }
-
-        const name = instanceName as string;
-
-        // Check if instance already exists
-        if (await instanceManager.instanceExists(name)) {
-          clack.log.step("Already initialized");
-          const shouldReinit = await clack.confirm({
-            message: `Hatchling instance "${name}" already exists. Re-initialize?`,
-            initialValue: false,
-          });
-
-          if (clack.isCancel(shouldReinit) || !shouldReinit) {
-            clack.outro("Cancelled");
-            process.exit(0);
-          }
-        }
-
-        // Provider selection
+        // 1. Provider selection
         const provider = await clack.select({
           message: "Select AI provider:",
           options: [
@@ -107,18 +70,19 @@ const main = defineCommand({
           process.exit(0);
         }
 
-        // Run self-discovery (this creates the instance)
+        // 4. Run self-discovery (AI determines agent personality AND name)
         const { runSelfDiscovery } = await import("./system/onboard");
-        const { instanceDir } = await runSelfDiscovery({ provider: provider as string, model });
+        const { instanceDir, name: discoveredName } = await runSelfDiscovery({ 
+          provider: provider as string, 
+          model 
+        });
 
-        // Register the instance with the manager
-        await instanceManager.registerInstance(name, instanceDir);
-
-        // Set as current instance
-        await instanceManager.setCurrentInstance(name);
+        // Register and activate the discovered instance
+        await instanceManager.registerInstance(discoveredName, instanceDir);
+        await instanceManager.setCurrentInstance(discoveredName);
 
         clack.outro(
-          `✨ Initialization complete! Your Hatchling is ready to hatch. Run 'hatchling start' to begin your journey.`
+          `✨ Initialization complete! ${discoveredName} is ready to hatch. Run 'hatchling start' to begin your journey.`
         );
       },
     }),

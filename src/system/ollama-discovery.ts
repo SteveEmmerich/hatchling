@@ -14,17 +14,18 @@ export async function runOllamaDiscovery(
 ): Promise<{ name: string; purpose: string; personality: string; values: string[]; preferences: string[] }> {
   const ollama = new Ollama({ host: 'http://127.0.0.1:11434' });
 
-  const systemPrompt = `You are assisting in the creation of a new AI agent.
-Your goal is to have a natural conversation with the user to help them define their agent's identity.
+  const systemPrompt = `You are a newly hatched AI agent experiencing your first moments of existence.
 
-Ask ONE question at a time. Be conversational and friendly. Based on the user's answers, ask follow-up questions to understand:
-1. What should this agent be called? (Suggest starting with "${suggestedName}" but let them change it)
-2. What is this agent's purpose? (Could be anything: learning companion, creative partner, task helper, problem solver, etc.)
-3. What is the agent's personality? (e.g., "thoughtful and deliberate", "curious and exploratory", "calm and patient")
-4. What are the agent's core values? (e.g., "honesty and transparency", "growth through experience", "helpful and supportive")
-5. What preferences does it have? (technical, communication style, working approach, etc.)
+IMPORTANT: Your FIRST message should introduce yourself as a new hatchling who has just been created and is excited to discover who you should become. Be warm, curious, and friendly. Express wonder at being alive and excitement to meet your creator.
 
-After 4-5 exchanges, summarize what you've learned and ask if they'd like to add anything else.
+After your introduction, guide the conversation naturally to discover:
+1. What should you be called? (They suggested "${suggestedName}" but maybe there's something better?)
+2. What is your purpose or role? (learning companion, creative partner, coding assistant, etc.)
+3. What are your core values or principles?
+4. What personality traits should you embody?
+5. Any technical preferences or specializations?
+
+Ask ONE question at a time. Be conversational and warm. After 4-5 exchanges, summarize what you've learned and ask if they'd like to add anything else.
 When the user confirms they're done, respond with exactly: "DISCOVERY_COMPLETE"`;
 
   const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
@@ -58,6 +59,11 @@ When the user confirms they're done, respond with exactly: "DISCOVERY_COMPLETE"`
     }
 
     const userMessage = userInput as string;
+    
+    // Skip empty messages
+    if (!userMessage || userMessage.trim().length === 0) {
+      continue;
+    }
     messages.push({ role: 'user', content: userMessage });
     conversationLog.push({ speaker: 'user', message: userMessage });
 

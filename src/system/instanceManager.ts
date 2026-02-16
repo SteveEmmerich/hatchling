@@ -47,8 +47,7 @@ export class InstanceManager {
     await mkdir(join(instancePath, "projects"), { recursive: true });
 
     // Create config
-    const Bun = (await import("bun")).default;
-    await Bun.write(
+    await writeFile(
       join(instancePath, "brain", "config.json"),
       JSON.stringify(
         {
