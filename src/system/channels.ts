@@ -34,6 +34,32 @@ function channelSkillName(channel: SupportedChannel): string {
   return `${channel}-gateway`;
 }
 
+const SHARED_CHANNEL_SKILL = "channel-mcp-bridge";
+
+function sharedChannelSkillDoc(): string {
+  return [
+    "# channel-mcp-bridge",
+    "",
+    "Reusable bridge skill for conversational channel onboarding via MCP servers.",
+    "",
+    "## Purpose",
+    "- Keep channel setup reusable across Telegram and WhatsApp.",
+    "- Provide known MCP server options with clear defaults.",
+    "- Let users opt into specific providers instead of requiring all channels up front.",
+    "",
+    "## Recommended MCP Servers",
+    "- Telegram: https://github.com/chaindead/telegram-mcp",
+    "- WhatsApp: https://github.com/lharries/whatsapp-mcp",
+    "",
+    "## Workflow",
+    "1. Bootstrap channel capability (`hatchling channel bootstrap <telegram|whatsapp>`).",
+    "2. Validate env vars (`hatchling channel validate <channel>`).",
+    "3. Test delivery (`hatchling channel test-message <channel> ...`).",
+    "4. Add/enable MCP server config if user wants ongoing inbound/outbound automation.",
+    "",
+  ].join("\n");
+}
+
 function channelSkillDoc(channel: SupportedChannel): string {
   if (channel === "telegram") {
     return [
@@ -97,10 +123,12 @@ function channelRequiredEnv(channel: SupportedChannel, metadata: Record<string, 
 export async function ensureChannelGatewaySkill(
   rootDir: string,
   channelName: string,
-): Promise<{ channel: SupportedChannel; skillPath: string }> {
+): Promise<{ channel: SupportedChannel; skillPath: string; created: boolean }> {
   const channel = ensureSupported(channelName);
   const skillDir = path.join(rootDir, "limbs", channelSkillName(channel));
+  let created = false;
   if (!existsSync(skillDir)) {
+    created = true;
     await fs.mkdir(skillDir, { recursive: true });
     await fs.writeFile(path.join(skillDir, "SKILL.md"), channelSkillDoc(channel), "utf-8");
     await fs.writeFile(
@@ -118,17 +146,56 @@ export async function ensureChannelGatewaySkill(
     );
   }
 
-  return { channel, skillPath: skillDir };
+  return { channel, skillPath: skillDir, created };
 }
 
-export async function bootstrapChannelCapability(rootDir: string, channelName: string): Promise<{ channel: SupportedChannel; skillPath: string }> {
-  const { channel, skillPath } = await ensureChannelGatewaySkill(rootDir, channelName);
+export async function ensureSharedChannelBridgeSkill(
+  rootDir: string,
+): Promise<{ skillPath: string; created: boolean }> {
+  const skillDir = path.join(rootDir, "limbs", SHARED_CHANNEL_SKILL);
+  let created = false;
+  if (!existsSync(skillDir)) {
+    created = true;
+    await fs.mkdir(skillDir, { recursive: true });
+    await fs.writeFile(path.join(skillDir, "SKILL.md"), sharedChannelSkillDoc(), "utf-8");
+    await fs.writeFile(
+      path.join(skillDir, "manifest.json"),
+      JSON.stringify(
+        {
+          name: SHARED_CHANNEL_SKILL,
+          createdAt: new Date().toISOString(),
+          purpose: "channel_gateway_reuse",
+        },
+        null,
+        2,
+      ),
+      "utf-8",
+    );
+  }
+  return { skillPath: skillDir, created };
+}
+
+export async function bootstrapChannelCapability(rootDir: string, channelName: string): Promise<{
+  channel: SupportedChannel;
+  skillPath: string;
+  createdGateway: boolean;
+  sharedSkillPath: string;
+  createdSharedSkill: boolean;
+}> {
+  const { channel, skillPath, created } = await ensureChannelGatewaySkill(rootDir, channelName);
+  const shared = await ensureSharedChannelBridgeSkill(rootDir);
 
   await enableCapability(rootDir, channelCapabilityName(channel), {
     ...defaultChannelMetadata(channel),
   });
 
-  return { channel, skillPath };
+  return {
+    channel,
+    skillPath,
+    createdGateway: created,
+    sharedSkillPath: shared.skillPath,
+    createdSharedSkill: shared.created,
+  };
 }
 
 export async function validateChannelCapability(rootDir: string, channelName: string): Promise<ChannelValidationResult> {

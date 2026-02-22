@@ -33,6 +33,8 @@ test("channel bootstrap -> validate -> test-message simulated flow", async () =>
     encoding: "utf-8",
   });
   assert.equal(bootstrap.status, 0, `${bootstrap.stdout}\n${bootstrap.stderr}`);
+  const sharedSkill = path.join(testHome, ".hatchlings", "channel-seed", "limbs", "channel-mcp-bridge", "SKILL.md");
+  await fs.access(sharedSkill);
 
   const validateMissing = spawnSync(
     "node",

@@ -350,17 +350,17 @@ export async function executeEvolutionPlan(
         const caps = await loadCapabilities(rootDir);
         const capBefore = caps.capabilities[capName] || { enabled: false, metadata: {} };
 
-        const skillPath = path.join(rootDir, "limbs", `${channel}-gateway`);
-        const skillExistedBefore = await fs
-          .stat(skillPath)
-          .then(() => true)
-          .catch(() => false);
-
         const result = await bootstrapChannelCapability(rootDir, channel);
-        if (!skillExistedBefore) {
+        if (result.createdGateway) {
           undo.push({
             type: "remove_path",
             data: { path: result.skillPath },
+          });
+        }
+        if (result.createdSharedSkill) {
+          undo.push({
+            type: "remove_path",
+            data: { path: result.sharedSkillPath },
           });
         }
         undo.push({

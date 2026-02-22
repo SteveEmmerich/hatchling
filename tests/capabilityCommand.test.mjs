@@ -142,6 +142,8 @@ test("capability enable for channel bootstraps gateway limb", async () => {
 
   const skillPath = path.join(testHome, ".hatchlings", "cap-channel-seed", "limbs", "telegram-gateway", "SKILL.md");
   await fs.access(skillPath);
+  const sharedSkillPath = path.join(testHome, ".hatchlings", "cap-channel-seed", "limbs", "channel-mcp-bridge", "SKILL.md");
+  await fs.access(sharedSkillPath);
 
   const capsPath = path.join(testHome, ".hatchlings", "cap-channel-seed", "brain", "capabilities.json");
   const caps = JSON.parse(await fs.readFile(capsPath, "utf-8"));

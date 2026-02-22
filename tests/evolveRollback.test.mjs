@@ -49,7 +49,9 @@ test("rollback reverts last evolution run actions", async () => {
   const active = (await fs.readFile(path.join(testHome, ".hatchling_active"), "utf-8")).trim();
   const root = path.join(testHome, ".hatchlings", active);
   const telegramSkill = path.join(root, "limbs", "telegram-gateway");
+  const sharedSkill = path.join(root, "limbs", "channel-mcp-bridge");
   await fs.access(telegramSkill);
+  await fs.access(sharedSkill);
 
   const rollback = spawnSync("node", ["dist/cli.js", "rollback", "--json"], {
     cwd: process.cwd(),
@@ -65,6 +67,11 @@ test("rollback reverts last evolution run actions", async () => {
     .then(() => true)
     .catch(() => false);
   assert.equal(skillExistsAfter, false);
+  const sharedSkillExistsAfter = await fs
+    .stat(sharedSkill)
+    .then(() => true)
+    .catch(() => false);
+  assert.equal(sharedSkillExistsAfter, false);
 
   const caps = JSON.parse(await fs.readFile(path.join(root, "brain", "capabilities.json"), "utf-8"));
   assert.equal(caps.capabilities["channel.telegram"].enabled, false);

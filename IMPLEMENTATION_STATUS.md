@@ -5,7 +5,6 @@ Last updated: 2026-02-22
 ## Verified Current State
 
 - Build: `npm run build` passes.
-- Tests: `npm test` passes (Node test harness, 40/40).
 - Tests: `npm test` passes (Node test harness, 42/42).
 - Runtime target: Node.js (Bun runtime APIs removed from `src/`).
 - Extension API: aligned with `@mariozechner/pi-coding-agent@0.52.12`.
@@ -14,6 +13,7 @@ Last updated: 2026-02-22
 - Identity source of truth: `brain/*.md`.
 - Control-plane model: single editable `brain/control-plane.json` with `init/show/validate/apply`.
 - Optional capability model: providers and channels are opt-in; channel enablement now bootstraps gateway limbs.
+- Reusable channel skill: channel bootstrap now installs `limbs/channel-mcp-bridge` with MCP guidance.
 - Evolution safety: `hatchling evolve` supports approval policy and rollback via `hatchling rollback`.
 - Autonomous loop: `hatchling autonomy` supports bounded multi-step planning/execution with approval gates and run logging.
 - Cross-session autonomy strategy: persistent prioritized goal backlog + run reflections in `brain/autonomy_strategy.json` and `brain/autonomy_reflections.md`.

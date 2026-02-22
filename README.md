@@ -209,6 +209,8 @@ hatchling channel test-message telegram --message "hello from hatchling" --json
 hatchling channel test-message telegram --message "hello from hatchling" --live --json
 ```
 
+Bootstrap now also installs a reusable shared skill at `limbs/channel-mcp-bridge` with recommended MCP server references for Telegram and WhatsApp.
+
 ### Directory Structure
 
 ```
