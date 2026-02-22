@@ -6,7 +6,7 @@ Last updated: 2026-02-22
 
 - Build: `npm run build` passes.
 - Tests: `npm test` passes (Node test harness, 40/40).
-- Tests: `npm test` passes (Node test harness, 41/41).
+- Tests: `npm test` passes (Node test harness, 42/42).
 - Runtime target: Node.js (Bun runtime APIs removed from `src/`).
 - Extension API: aligned with `@mariozechner/pi-coding-agent@0.52.12`.
 - Discovery mode: Hindbrain-first onboarding is the active path.
@@ -16,6 +16,7 @@ Last updated: 2026-02-22
 - Optional capability model: providers and channels are opt-in; channel enablement now bootstraps gateway limbs.
 - Evolution safety: `hatchling evolve` supports approval policy and rollback via `hatchling rollback`.
 - Autonomous loop: `hatchling autonomy` supports bounded multi-step planning/execution with approval gates and run logging.
+- Cross-session autonomy strategy: persistent prioritized goal backlog + run reflections in `brain/autonomy_strategy.json` and `brain/autonomy_reflections.md`.
 - Channel transport: `channel test-message` supports simulated or live provider API mode (`--live`).
 - Manual E2E:
   - `hatchling init` completes with degraded local discovery prompts when Hindbrain model init fails.
@@ -56,7 +57,8 @@ Last updated: 2026-02-22
 
 3. Autonomous long-horizon planning
 - Bounded autonomy loop is implemented with approval guards and run logs.
-- Still needed: richer self-directed strategy updates across sessions (goal reprioritization, reflection heuristics).
+- Cross-session reprioritization and reflection heuristics are now implemented for persistent pending goals.
+- Still needed: richer self-generated strategic goal creation beyond user-provided objective decomposition.
 
 ## Completion Criteria for First Stable Release
 

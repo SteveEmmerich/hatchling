@@ -2,6 +2,13 @@ import fs from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
 import { executeEvolutionPlan, listRiskyEvolveActions, planEvolution, type EvolveExecutionResult, type EvolvePlan } from "./evolve.js";
+import {
+  appendAutonomyReflection,
+  applyRunToStrategy,
+  seedStrategyGoals,
+  selectNextGoals,
+  type StrategyGoal,
+} from "./autonomy-strategy.js";
 
 const AUTONOMY_LOG_FILE = "brain/autonomy_runs.json";
 
@@ -23,6 +30,7 @@ export interface AutonomousRunOptions {
   approveUntrusted?: boolean;
   skillSubdir?: string;
   stopOnFailure?: boolean;
+  useStrategy?: boolean;
 }
 
 export interface AutonomousRunResult {
@@ -70,6 +78,10 @@ function splitObjectives(goal: string, maxSteps: number): string[] {
   return chunks.slice(0, maxSteps);
 }
 
+function objectiveListFromStrategy(goals: StrategyGoal[]): string[] {
+  return goals.map((goal) => goal.objective);
+}
+
 async function readLog(rootDir: string): Promise<AutonomyLogPayload> {
   const target = path.join(rootDir, AUTONOMY_LOG_FILE);
   if (!existsSync(target)) return { runs: [] };
@@ -113,7 +125,13 @@ export async function runAutonomousEvolution(
 ): Promise<AutonomousRunResult> {
   const maxSteps = Math.max(1, Number(options.maxSteps || 5));
   const execute = Boolean(options.execute);
-  const objectives = splitObjectives(goal, maxSteps);
+  const useStrategy = options.useStrategy !== false;
+  const requestedObjectives = splitObjectives(goal, maxSteps);
+  let objectives = requestedObjectives;
+  if (useStrategy) {
+    const seeded = await seedStrategyGoals(rootDir, requestedObjectives);
+    objectives = objectiveListFromStrategy(selectNextGoals(seeded, maxSteps));
+  }
   const run = runId();
   const steps: AutonomousStep[] = [];
   let stoppedReason = "";
@@ -195,5 +213,9 @@ export async function runAutonomousEvolution(
     stoppedReason: stoppedReason || undefined,
   };
   await appendLog(rootDir, result);
+  if (useStrategy) {
+    await applyRunToStrategy(rootDir, steps);
+    await appendAutonomyReflection(rootDir, result);
+  }
   return result;
 }

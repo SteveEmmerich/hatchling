@@ -277,6 +277,7 @@ export default function (pi: ExtensionAPI) {
       approvePlan: Type.Optional(Type.Boolean({ description: "Approve risky steps when required" })),
       approveUntrusted: Type.Optional(Type.Boolean({ description: "Approve untrusted repo installs" })),
       skillSubdir: Type.Optional(Type.String({ description: "Optional skill subdirectory for install actions" })),
+      disableStrategy: Type.Optional(Type.Boolean({ description: "Disable cross-session strategy backlog for this run" })),
     }),
     async execute(_toolCallId, params) {
       const { runAutonomousEvolution } = await import("./system/autonomy.js");
@@ -287,6 +288,7 @@ export default function (pi: ExtensionAPI) {
         approvePlan: Boolean(params.approvePlan),
         approveUntrusted: Boolean(params.approveUntrusted),
         skillSubdir: params.skillSubdir,
+        useStrategy: !Boolean(params.disableStrategy),
       });
       return {
         content: [

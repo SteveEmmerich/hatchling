@@ -127,7 +127,14 @@ hatchling autonomy "Enable Telegram gateway then run maintenance" --maxSteps 4 -
 
 # Execute autonomy loop with approval guardrails
 hatchling autonomy "Use Claude then run maintenance" --execute --enforceApprovals --approvePlan --json
+
+# Disable cross-session strategy backlog for one run
+hatchling autonomy "Run maintenance" --disableStrategy --json
 ```
+
+Autonomy strategy artifacts:
+- `brain/autonomy_strategy.json` stores persistent prioritized goals across runs.
+- `brain/autonomy_reflections.md` records run summaries and next priorities.
 
 ### MCP Server Commands
 

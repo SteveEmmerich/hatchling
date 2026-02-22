@@ -1242,6 +1242,11 @@ const main = defineCommand({
           type: "string",
           description: "Optional skill subdirectory for install actions",
         },
+        disableStrategy: {
+          type: "boolean",
+          default: false,
+          description: "Disable cross-session strategy backlog for this run",
+        },
       },
       async run({ args }) {
         const activeInstance = await getActiveInstance();
@@ -1263,6 +1268,7 @@ const main = defineCommand({
           approvePlan: Boolean(args.approvePlan),
           approveUntrusted: Boolean(args.approveUntrusted),
           skillSubdir: args.skillSubdir ? String(args.skillSubdir) : undefined,
+          useStrategy: !Boolean(args.disableStrategy),
         });
 
         if (args.json) {
