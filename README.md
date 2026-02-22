@@ -17,10 +17,10 @@ Hatchling is an extension for the [pi-coding-agent](https://github.com/badlogic/
 
 ```bash
 # Install dependencies
-bun install
+npm install
 
 # Link for global usage (optional)
-bun link
+npm link
 ```
 
 ## 📖 Usage
@@ -30,19 +30,28 @@ bun link
 ```bash
 # Initialize a new Hatchling
 hatchling init
+
+# CI/scripted initialization
+hatchling init --non-interactive --name seed --purpose "Assist with production engineering" --personality "curious,direct"
 ```
 
 This will guide you through:
-1. Selecting an AI provider (Anthropic, OpenAI, Ollama, Google)
+1. Selecting an AI provider
 2. Choosing a model
 3. Naming your agent
-4. Interactive self-discovery conversation (coming soon: pi-tui integration)
+4. Interactive self-discovery via the local Hindbrain
 
 ### Start Your Agent
 
 ```bash
 # Launch Hatchling with pi-coding-agent
 hatchling start
+
+# Non-interactive startup validation (CI/smoke checks)
+hatchling start --smoke
+
+# Local dashboard
+hatchling web --port 8787
 ```
 
 ### Check System Health
@@ -50,31 +59,42 @@ hatchling start
 ```bash
 # View vitals and metrics
 hatchling vitals
+
+# Runtime diagnostics
+hatchling doctor
+hatchling doctor --json
 ```
 
 ### Commands Inside Hatchling
 
 - `/sleep` - Perform evolution cycle (snapshot → synthesize → commit)
-- `/mutate <name> <description>` - Create new skill in staging
-- `/amputate` - Rollback last mutation  
 - `/vitals` - Show system health and metrics
 - `/good [note]` - Positive reinforcement
-- `/bad [note]` - Negative reinforcement  
-- `/debug` - Toggle debug mode
+- `/bad [note]` - Negative reinforcement
+
+### Skill Evolution Commands
+
+```bash
+# Stage a new skill in quarantine
+hatchling skill stage web-vision "Render a browser dashboard for hatchling status"
+
+# List staged and active skills
+hatchling skill list
+
+# Promote staged skill into active limbs
+hatchling skill promote web-vision
+```
 
 ### Directory Structure
 
 ```
 hatchling-core/
-├── .self/              # Agent identity (DNA)
-│   ├── CONSTITUTION.md (immutable)
-│   ├── SOUL.md (immutable)  
-│   ├── IDENTITY.md (immutable)
-│   ├── STYLE.md (immutable)
-│   ├── USER_CORE.md (immutable)
-│   ├── USER_CONTEXT.md (adaptive)
-│   └── EXPERIENCE.md (evolving)
-├── brain/              # Configuration & state
+├── brain/              # Identity, configuration, and state
+│   ├── CONSTITUTION.md
+│   ├── SOUL.md
+│   ├── IDENTITY.md
+│   ├── USER_CORE.md
+│   ├── USER_CONTEXT.md
 │   ├── config.json
 │   ├── mutation_state.json
 │   ├── curiosity_state.json
@@ -118,14 +138,22 @@ Hatchling models itself as a living organism:
 
 ```bash
 # Run tests
-bun test
+npm test
 
 # Watch mode
-bun test --watch
+npm run build -- --watch
 
 # Check types
-tsc --noEmit
+npm run build
 ```
+
+### Hindbrain Backend Selection
+
+Set `HATCHLING_HINDBRAIN_BACKEND` to control local model backend behavior:
+
+- `auto` (default) - tries CPU first, then Metal
+- `cpu` - force CPU backend
+- `metal` - force Metal backend
 
 ## 📋 Roadmap
 

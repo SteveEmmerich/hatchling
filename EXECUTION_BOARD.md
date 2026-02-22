@@ -1,0 +1,73 @@
+# Hatchling Execution Board
+
+Updated: 2026-02-22
+
+## Now
+
+1. Runtime Reliability & Diagnostics
+- Status: Complete
+- Scope:
+  - Add `hatchling doctor` command with pass/warn/fail checks.
+  - Gate startup prerequisites and expose machine-readable health output for CI.
+- Acceptance:
+  - `hatchling doctor --json` returns structured checks and non-zero exit on blocking failures.
+
+2. Organic Core Loop Validation
+- Status: Complete
+- Scope:
+  - Validate feedback (`/good`/`/bad`), vitals, sleep snapshots/commits, and mutation success/rejection paths.
+- Acceptance:
+  - Integration tests cover positive and negative evolution paths and pass in CI.
+
+3. User-Facing Evolution Primitive
+- Status: Complete
+- Scope:
+  - Ensure realistic self-mutation request works (e.g., web interface module generation).
+- Acceptance:
+  - `mutate_self` can successfully add a real module to instance `src/` with compile integrity checks.
+
+## Next
+
+1. Interactive E2E Harness
+- Status: Complete (scripted CI path)
+- Scope:
+  - Added deterministic non-interactive `init` flow and end-to-end CI test path.
+- Acceptance:
+  - Reproducible `init -> list -> start --smoke -> doctor` passes in CI tests.
+
+2. Hindbrain Backend Hardening
+- Status: Complete
+- Scope:
+  - Added backend selector (`auto|cpu|metal`), explicit attempts, diagnostics, and graceful onboarding fallback.
+- Acceptance:
+  - Clear diagnosis and fallback behavior on unsupported GPU backends.
+
+3. Skill Evolution Pipeline
+- Status: Complete (MVP)
+- Scope:
+  - Implemented stage/list/promote workflow with quarantined staging area.
+- Acceptance:
+  - New skill can be staged and promoted without manual file surgery.
+
+## Later
+
+1. Web Interface Limb (MVP)
+- Status: MVP complete
+- Scope:
+  - Local web UI endpoint and snapshot mode for dashboard rendering.
+- Acceptance:
+  - `hatchling web` serves dashboard; `hatchling web --snapshot` is test-verified.
+
+2. Sleep Intelligence Upgrade
+- Status: MVP complete
+- Scope:
+  - Sleep now synthesizes telemetry into `brain/EXPERIENCE.md` each cycle.
+- Acceptance:
+  - Sleep cycles persist a concrete experience summary artifact and are test-verified.
+
+3. Release Packaging & Upgrade Story
+- Status: Documentation complete
+- Scope:
+  - Added release checklist and upgrade guide with env/backends/health verification steps.
+- Acceptance:
+  - Operators have explicit build/test/health/upgrade runbooks.

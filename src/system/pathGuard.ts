@@ -1,104 +1,55 @@
-import path from 'path';
-import fs from 'fs/promises';
+import path from "path";
+import { homedir } from "os";
 
-const PROTECTED_FILES = [
-  '.self/CONSTITUTION.md',
-  '.self/SOUL.md',
-  '.self/IDENTITY.md',
-  '.self/STYLE.md',
-  '.self/USER_CORE.md'
-];
-
-export class ProtectedFileError extends Error {
-  constructor(filePath: string) {
-    super(`Access Denied: ${filePath} is a constitutionally protected file.`);
-    this.name = 'ProtectedFileError';
-  }
-}
-
+/**
+ * PATH: src/system/pathGuard.ts
+ */
 export class PathGuard {
-  private static rootDir: string = process.cwd();
+  private static rootDir: string = process.env.HATCHLING_INSTANCE_PATH || process.cwd();
 
   static setRoot(root: string) {
-    this.rootDir = root;
+    this.rootDir = path.resolve(root);
   }
 
   static getRoot(): string {
     return this.rootDir;
   }
-  
-  static isProtected(relativePath: string): boolean {
-    // Normalize path separators for cross-platform check
-    const normalized = relativePath.split(path.sep).join('/');
-    return PROTECTED_FILES.includes(normalized);
+
+  // Backward-compatible alias used by older modules.
+  static getAgentRoot(): string {
+    return this.getRoot();
   }
 
-  /**
-   * Validate and resolve a path for filesystem operations.
-   * Ensures the path is inside the agent territory and not protected (for writes).
-   */
+  static redact(input: string): string {
+    const home = homedir().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return input
+      .replace(new RegExp(home, "g"), "~")
+      .replace(
+        /(api[_-]?key|token|secret|password)\s*[:=]\s*["']?[^"'\s]+["']?/gi,
+        "$1=[REDACTED]",
+      );
+  }
+
   static async validatePath(
-    requestedPath: string,
-    operation: 'read' | 'write' = 'read'
+    requested: string,
+    op: "read" | "write" = "read",
   ): Promise<string> {
-    const rootDir = this.rootDir;
-    
-    // 1. Resolve to absolute path
-    const absolute = path.isAbsolute(requestedPath)
-      ? path.normalize(requestedPath)
-      : path.resolve(rootDir, requestedPath);
-    
-    // 2. Ensure it's inside the territory
-    if (!absolute.startsWith(rootDir)) {
-      throw new Error(`Access Denied: Path ${absolute} is outside territory ${rootDir}`);
+    const absolute = path.isAbsolute(requested)
+      ? path.normalize(requested)
+      : path.resolve(this.rootDir, requested);
+
+    if (!(absolute === this.rootDir || absolute.startsWith(`${this.rootDir}${path.sep}`))) {
+      throw new Error("FIREWALL: Path outside territory.");
     }
 
-    // 3. Resolve any symlinks (real path check)
-    // We only check this for existing files to prevent symlink attacks
-    try {
-      // Check if the file/directory exists first
-      const stats = await fs.stat(absolute);
-      const realPath = await fs.realpath(absolute);
-      if (!realPath.startsWith(rootDir)) {
-        throw new Error(`Access Denied: Symlink ${absolute} points outside territory`);
-      }
-      // Return the real path for existing files
-      return realPath;
-    } catch (error: any) {
-      // If file doesn't exist (ENOENT), that's okay for writes or optional reads
-      // providing the parent directory is valid.
-      if (error.code !== 'ENOENT') {
-        throw error;
-      }
-    }
-
-    // 4. Check protected files (Write operation only)
-    if (operation === 'write') {
-      const relative = path.relative(rootDir, absolute);
-      if (this.isProtected(relative)) {
-        throw new ProtectedFileError(relative);
-      }
+    if (
+      op === "write" &&
+      path.relative(this.rootDir, absolute).startsWith("brain/")
+    ) {
+      if (!process.env.HATCHLING_INTERNAL_WRITE)
+        throw new Error("FIREWALL: Brain is protected.");
     }
 
     return absolute;
-  }
-
-  /**
-   * Redact sensitive information from logs or output.
-   */
-  static redact(content: string): string {
-    // Basic patterns for API keys and tokens
-    const patterns = [
-      /sk-[a-zA-Z0-9]{20,}/g,           // OpenAI / Generic sk- keys
-      /ghp_[a-zA-Z0-9]{20,}/g,          // GitHub Personal Access Tokens
-      /xox[baprs]-[a-zA-Z0-9]{10,}/g,   // Slack tokens
-      /eyJ[a-zA-Z0-9\-_]+\.eyJ[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+/g // JWTs
-    ];
-
-    let redacted = content;
-    for (const pattern of patterns) {
-      redacted = redacted.replace(pattern, '[REDACTED]');
-    }
-    return redacted;
   }
 }

@@ -6,7 +6,7 @@ const PULSE_INTERVAL_MS = 60000; // 1 minute (for demo/testing, maybe 10m in pro
 async function getCuriosity(): Promise<number> {
   try {
     const path = await PathGuard.validatePath('brain/curiosity_state.json', 'read');
-    const state = await Bun.file(path).json();
+    const state = JSON.parse(await fs.readFile(path, 'utf-8'));
     return state.adjustedCuriosity;
   } catch {
     return 1; // Default low curiosity

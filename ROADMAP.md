@@ -4,7 +4,7 @@
 Coding assistant and autonomous developer
 
 ## Planned Improvements
-[Will be populated during sleep cycles]
+- Web Interface Limb: allow the hatchling to generate and evolve a first-party web interface module for status and control.
 
 ## Completed Features
 - ✅ Birth (2026-02-14)

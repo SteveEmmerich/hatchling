@@ -1,18 +1,57 @@
 /**
  * Direct Ollama integration for self-discovery conversation
  * Bypasses pi-agent-core to use Ollama SDK directly
+ * Falls back to Hindbrain if Ollama is unavailable
  */
 
 import { Ollama } from 'ollama';
 import * as clack from '@clack/prompts';
 import { logEvent } from './telemetry';
+import { hindbrainPrompt, isHindbrainAvailable, initializeHindbrain } from '../brain/hindbrain.js';
+
+/**
+ * Get available Ollama models dynamically
+ */
+export async function getAvailableModels(): Promise<Array<{ name: string; label: string }>> {
+  try {
+    const ollama = new Ollama({ host: 'http://127.0.0.1:11434' });
+    const response = await ollama.list();
+    return response.models.map((model: any) => ({
+      name: model.name,
+      label: `${model.name} (${(model.size / 1e9).toFixed(1)}B)`,
+    }));
+  } catch (error) {
+    console.warn('⚠️  Ollama unavailable, returning fallback models');
+    return [
+      { name: 'qwen2.5-coder:7b', label: 'Qwen 2.5 Coder 7B (Recommended)' },
+      { name: 'llama3.3:70b', label: 'Llama 3.3 70B' },
+      { name: 'qwen3-coder:30b', label: 'Qwen 3 Coder 30B' },
+    ];
+  }
+}
 
 export async function runOllamaDiscovery(
   modelId: string,
   suggestedName: string,
   rootDir: string
 ): Promise<{ name: string; purpose: string; personality: string; values: string[]; preferences: string[] }> {
-  const ollama = new Ollama({ host: 'http://127.0.0.1:11434' });
+  // Try Ollama first, fallback to Hindbrain
+  let useHindbrain = false;
+  let ollama: Ollama | null = null;
+
+  try {
+    ollama = new Ollama({ host: 'http://127.0.0.1:11434' });
+    // Test connection
+    await ollama.list();
+  } catch (error) {
+    console.log('⚠️  Ollama unavailable, switching to Hindbrain...');
+    if (isHindbrainAvailable()) {
+      useHindbrain = true;
+      await initializeHindbrain();
+    } else {
+      throw new Error('Both Ollama and Hindbrain are unavailable');
+    }
+  }
 
   const systemPrompt = `You are a newly hatched AI agent experiencing your first moments of existence.
 
@@ -35,13 +74,24 @@ When the user confirms they're done, respond with exactly: "DISCOVERY_COMPLETE"`
   const conversationLog: Array<{ speaker: string; message: string }> = [];
 
   // Start the conversation
-  const response = await ollama.chat({
-    model: modelId,
-    messages,
-    stream: false
-  });
+  let assistantMessage: string;
+  
+  if (useHindbrain) {
+    assistantMessage = await hindbrainPrompt(
+      "Begin the discovery conversation. Introduce yourself as a new hatchling.",
+      { systemPrompt }
+    );
+  } else if (ollama) {
+    const response = await ollama.chat({
+      model: modelId,
+      messages,
+      stream: false
+    });
+    assistantMessage = response.message.content;
+  } else {
+    throw new Error('No LLM available');
+  }
 
-  let assistantMessage = response.message.content;
   messages.push({ role: 'assistant', content: assistantMessage });
   conversationLog.push({ speaker: 'assistant', message: assistantMessage });
 
@@ -68,13 +118,22 @@ When the user confirms they're done, respond with exactly: "DISCOVERY_COMPLETE"`
     conversationLog.push({ speaker: 'user', message: userMessage });
 
     // Get LLM response
-    const response = await ollama.chat({
-      model: modelId,
-      messages,
-      stream: false
-    });
-
-    assistantMessage = response.message.content;
+    if (useHindbrain) {
+      const context = messages.map(m => `${m.role}: ${m.content}`).join('\n\n');
+      assistantMessage = await hindbrainPrompt(
+        `${context}\n\nassistant:`,
+        { maxTokens: 512 }
+      );
+    } else if (ollama) {
+      const response = await ollama.chat({
+        model: modelId,
+        messages,
+        stream: false
+      });
+      assistantMessage = response.message.content;
+    } else {
+      throw new Error('No LLM available');
+    }
     messages.push({ role: 'assistant', content: assistantMessage });
     conversationLog.push({ speaker: 'assistant', message: assistantMessage });
 
@@ -109,11 +168,19 @@ Provide a JSON response with ONLY the JSON object, no extra text:
   "preferences": ["pref1", "pref2", "pref3"]
 }`;
 
+  if (!ollama) {
+    return {
+      name: suggestedName,
+      purpose: 'General-purpose coding assistant',
+      personality: 'Helpful and professional',
+      values: ['code quality', 'clear communication', 'best practices'],
+      preferences: ['TypeScript', 'modern tooling'],
+    };
+  }
+
   const extractionResponse = await ollama.chat({
     model: modelId,
-    messages: [
-      { role: 'user', content: extractionPrompt }
-    ],
+    messages: [{ role: 'user', content: extractionPrompt }],
     stream: false,
     format: 'json'
   });

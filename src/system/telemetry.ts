@@ -28,7 +28,7 @@ export class Telemetry {
     };
 
     try {
-      const filePath = await PathGuard.validatePath(process.cwd(), logFile, 'write');
+      const filePath = await PathGuard.validatePath(logFile, 'write');
       await fs.appendFile(filePath, JSON.stringify(entry) + '\n');
       
       // Also log to console for immediate feedback
