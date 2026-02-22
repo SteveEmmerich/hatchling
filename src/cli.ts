@@ -5,8 +5,8 @@
 import { defineCommand, runMain } from "citty";
 import { spawn } from "child_process";
 import { resolve } from "path";
-import { existsSync } from "fs";
-import { access, constants } from "fs/promises";
+import { existsSync, openSync } from "fs";
+import { access, constants, mkdir, readFile, rm, writeFile } from "fs/promises";
 import { homedir } from "os";
 import { join } from "path";
 import * as clack from "@clack/prompts";
@@ -26,6 +26,40 @@ interface DoctorCheck {
   key: string;
   level: DoctorLevel;
   message: string;
+}
+
+interface DaemonState {
+  pid: number;
+  startedAt: string;
+  instance: string;
+  logPath: string;
+}
+
+function daemonStatePath(instancePath: string): string {
+  return join(instancePath, "brain", "daemon_state.json");
+}
+
+function daemonLogPath(instancePath: string): string {
+  return join(instancePath, "memory", "daemon.log");
+}
+
+async function readDaemonState(instancePath: string): Promise<DaemonState | null> {
+  try {
+    const parsed = JSON.parse(await readFile(daemonStatePath(instancePath), "utf-8")) as DaemonState;
+    if (!parsed || typeof parsed.pid !== "number") return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function isProcessRunning(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function runDoctorChecks(): Promise<{ checks: DoctorCheck[]; ok: boolean }> {
@@ -321,6 +355,29 @@ const main = defineCommand({
           description: "Validate start prerequisites without launching pi",
           default: false,
         },
+        daemon: {
+          type: "boolean",
+          description: "Run Hatchling in background daemon mode",
+          default: false,
+        },
+        stopDaemon: {
+          type: "boolean",
+          description: "Stop background daemon for the active instance",
+          default: false,
+        },
+        daemonStatus: {
+          type: "boolean",
+          description: "Print daemon status for the active instance",
+          default: false,
+        },
+        daemonCommand: {
+          type: "string",
+          description: "Override daemon command binary (advanced/testing)",
+        },
+        daemonArgs: {
+          type: "string",
+          description: "Space-separated daemon command args (advanced/testing)",
+        },
       },
       async run({ args }) {
         clack.intro("🐣 Starting Hatchling");
@@ -351,15 +408,91 @@ const main = defineCommand({
           process.exit(1);
         }
 
+        if (args.stopDaemon) {
+          const state = await readDaemonState(instancePath);
+          if (!state) {
+            clack.log.info("No daemon state file found.");
+            return;
+          }
+          if (!isProcessRunning(state.pid)) {
+            clack.log.warn(`Daemon PID ${state.pid} is not running; cleaning stale state.`);
+            await rm(daemonStatePath(instancePath), { force: true });
+            return;
+          }
+          try {
+            process.kill(state.pid, "SIGTERM");
+          } catch (error: any) {
+            clack.log.error(`Failed to stop daemon: ${String(error.message || error)}`);
+            process.exit(1);
+          }
+          await rm(daemonStatePath(instancePath), { force: true });
+          clack.log.success(`Stopped daemon PID ${state.pid} for ${activeInstance}.`);
+          return;
+        }
+
+        if (args.daemonStatus) {
+          const state = await readDaemonState(instancePath);
+          if (!state) {
+            clack.log.info("Daemon is not running.");
+            return;
+          }
+          const running = isProcessRunning(state.pid);
+          if (!running) {
+            clack.log.warn(`Daemon state found but PID ${state.pid} is not running.`);
+            return;
+          }
+          clack.log.success(`Daemon running (pid=${state.pid}) for ${activeInstance}.`);
+          clack.log.info(`Log: ${state.logPath}`);
+          return;
+        }
+
         if (args.smoke) {
           clack.log.success("Smoke check passed: start prerequisites are valid.");
           return;
         }
 
-        const npxCommand = process.platform === "win32" ? "npx.cmd" : "npx";
+        const defaultCommand = process.platform === "win32" ? "npx.cmd" : "npx";
+        const command = args.daemonCommand ? String(args.daemonCommand) : defaultCommand;
+        const commandArgs = args.daemonCommand
+          ? (args.daemonArgs ? String(args.daemonArgs).split(/\s+/).filter(Boolean) : [])
+          : ["pi", "--extension", extensionPath];
+
+        if (args.daemon) {
+          const existing = await readDaemonState(instancePath);
+          if (existing && isProcessRunning(existing.pid)) {
+            clack.log.warn(`Daemon already running (pid=${existing.pid}).`);
+            clack.log.info(`Log: ${existing.logPath}`);
+            return;
+          }
+
+          const logPath = daemonLogPath(instancePath);
+          await mkdir(join(instancePath, "memory"), { recursive: true });
+          const logFd = openSync(logPath, "a");
+          const daemon = spawn(command, commandArgs, {
+            stdio: ["ignore", logFd, logFd],
+            shell: false,
+            detached: true,
+            cwd: instancePath,
+            env: {
+              ...process.env,
+              HATCHLING_INSTANCE_PATH: instancePath,
+            },
+          });
+          daemon.unref();
+          const state: DaemonState = {
+            pid: daemon.pid ?? -1,
+            startedAt: new Date().toISOString(),
+            instance: activeInstance,
+            logPath,
+          };
+          await writeFile(daemonStatePath(instancePath), JSON.stringify(state, null, 2), "utf-8");
+          clack.log.success(`Daemon started for ${activeInstance} (pid=${state.pid}).`);
+          clack.log.info(`Log: ${logPath}`);
+          return;
+        }
 
         // Spawn pi with cwd set to the instance directory.
-        const pi = spawn(npxCommand, ["pi", "--extension", extensionPath], {
+        const pi = spawn(command, commandArgs, {
           stdio: "inherit",
           shell: false,
           cwd: instancePath, // THIS IS KEY: Run in the instance's territory

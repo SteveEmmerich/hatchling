@@ -48,6 +48,13 @@ This will guide you through:
 # Launch Hatchling with pi-coding-agent
 hatchling start
 
+# Launch as background daemon
+hatchling start --daemon
+
+# Check daemon status / stop daemon
+hatchling start --daemonStatus
+hatchling start --stopDaemon
+
 # Non-interactive startup validation (CI/smoke checks)
 hatchling start --smoke
 
