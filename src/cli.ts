@@ -923,6 +923,11 @@ const main = defineCommand({
               default: false,
               description: "Print machine-readable result",
             },
+            live: {
+              type: "boolean",
+              default: false,
+              description: "Send through real provider API instead of simulation",
+            },
           },
           async run({ args }) {
             const activeInstance = await getActiveInstance();
@@ -933,11 +938,18 @@ const main = defineCommand({
             const rootDir = getInstancePath(activeInstance);
             const { sendChannelTestMessage } = await import("./system/channels.js");
             try {
-              const result = await sendChannelTestMessage(rootDir, String(args.name), String(args.message));
+              const result = await sendChannelTestMessage(
+                rootDir,
+                String(args.name),
+                String(args.message),
+                { mode: args.live ? "live" : "simulate" },
+              );
               if (args.json) {
                 console.log(JSON.stringify(result, null, 2));
               } else {
-                clack.log.success(`Test message queued in ${result.outboxPath}`);
+                clack.log.success(
+                  `${args.live ? "Live" : "Simulated"} test message queued in ${result.outboxPath}`,
+                );
               }
             } catch (error: any) {
               if (args.json) {

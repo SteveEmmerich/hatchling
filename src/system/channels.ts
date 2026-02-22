@@ -13,6 +13,11 @@ export interface ChannelValidationResult {
   message: string;
 }
 
+export interface ChannelSendOptions {
+  mode?: "simulate" | "live" | "auto";
+  fetchImpl?: typeof fetch;
+}
+
 function ensureSupported(name: string): SupportedChannel {
   const normalized = name.trim().toLowerCase();
   if (normalized !== "telegram" && normalized !== "whatsapp") {
@@ -170,11 +175,20 @@ export async function sendChannelTestMessage(
   rootDir: string,
   channelName: string,
   message: string,
+  options: ChannelSendOptions = {},
 ): Promise<{ ok: boolean; outboxPath: string; entry: Record<string, any>; validation: ChannelValidationResult }> {
   const channel = ensureSupported(channelName);
   const validation = await validateChannelCapability(rootDir, channel);
   if (!validation.ok) {
     throw new Error(validation.message);
+  }
+
+  const mode = options.mode || "simulate";
+  const useLive = mode === "live" || (mode === "auto" && validation.ok);
+
+  let delivery: Record<string, any> = { simulated: true, mode: "simulate" };
+  if (useLive) {
+    delivery = await sendLiveChannelMessage(channel, message, validation, options.fetchImpl || fetch);
   }
 
   const outboxPath = path.join(rootDir, "memory", "channels", channel, "outbox.jsonl");
@@ -184,7 +198,7 @@ export async function sendChannelTestMessage(
     channel,
     message,
     timestamp: new Date().toISOString(),
-    simulated: true,
+    ...delivery,
   };
   await fs.appendFile(outboxPath, JSON.stringify(entry) + "\n", "utf-8");
 
@@ -193,5 +207,69 @@ export async function sendChannelTestMessage(
     outboxPath,
     entry,
     validation,
+  };
+}
+
+async function sendLiveChannelMessage(
+  channel: SupportedChannel,
+  message: string,
+  validation: ChannelValidationResult,
+  fetchImpl: typeof fetch,
+): Promise<Record<string, any>> {
+  if (channel === "telegram") {
+    const [tokenEnv, chatEnv] = validation.requiredEnv;
+    const token = process.env[tokenEnv];
+    const chatId = process.env[chatEnv];
+    if (!token || !chatId) {
+      throw new Error(`Missing Telegram credentials in ${tokenEnv}/${chatEnv}.`);
+    }
+    const response = await fetchImpl(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text: message }),
+    });
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(`Telegram delivery failed (${response.status}): ${body || response.statusText}`);
+    }
+    const payload = await response.json().catch(() => ({}));
+    return {
+      simulated: false,
+      mode: "live",
+      provider: "telegram",
+      delivery: payload,
+    };
+  }
+
+  const [tokenEnv, phoneIdEnv] = validation.requiredEnv;
+  const accessToken = process.env[tokenEnv];
+  const phoneNumberId = process.env[phoneIdEnv];
+  if (!accessToken || !phoneNumberId) {
+    throw new Error(`Missing WhatsApp credentials in ${tokenEnv}/${phoneIdEnv}.`);
+  }
+
+  const response = await fetchImpl(`https://graph.facebook.com/v21.0/${phoneNumberId}/messages`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      to: "0000000000",
+      type: "text",
+      text: { body: message },
+    }),
+  });
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(`WhatsApp delivery failed (${response.status}): ${body || response.statusText}`);
+  }
+  const payload = await response.json().catch(() => ({}));
+  return {
+    simulated: false,
+    mode: "live",
+    provider: "whatsapp",
+    delivery: payload,
   };
 }

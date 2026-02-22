@@ -6,6 +6,7 @@ Last updated: 2026-02-22
 
 - Build: `npm run build` passes.
 - Tests: `npm test` passes (Node test harness, 40/40).
+- Tests: `npm test` passes (Node test harness, 41/41).
 - Runtime target: Node.js (Bun runtime APIs removed from `src/`).
 - Extension API: aligned with `@mariozechner/pi-coding-agent@0.52.12`.
 - Discovery mode: Hindbrain-first onboarding is the active path.
@@ -15,6 +16,7 @@ Last updated: 2026-02-22
 - Optional capability model: providers and channels are opt-in; channel enablement now bootstraps gateway limbs.
 - Evolution safety: `hatchling evolve` supports approval policy and rollback via `hatchling rollback`.
 - Autonomous loop: `hatchling autonomy` supports bounded multi-step planning/execution with approval gates and run logging.
+- Channel transport: `channel test-message` supports simulated or live provider API mode (`--live`).
 - Manual E2E:
   - `hatchling init` completes with degraded local discovery prompts when Hindbrain model init fails.
   - `hatchling start` resolves active instance path and launches the pi subprocess.
@@ -49,8 +51,8 @@ Last updated: 2026-02-22
 - In-session social behavior polish still needs deeper personality adaptation over time.
 
 2. Real transport adapters
-- Telegram/WhatsApp flows are scaffolded and validated with simulated delivery logs.
-- Production network adapter execution paths are not yet implemented in this repo.
+- Telegram/WhatsApp bootstrap and validation are implemented.
+- Live provider test-message path is implemented; full ongoing conversation gateway runtime is still pending.
 
 3. Autonomous long-horizon planning
 - Bounded autonomy loop is implemented with approval guards and run logs.

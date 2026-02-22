@@ -197,6 +197,9 @@ hatchling channel validate telegram --json
 
 # Simulate first delivery (writes to memory/channels/<name>/outbox.jsonl)
 hatchling channel test-message telegram --message "hello from hatchling" --json
+
+# Send live test delivery through provider API
+hatchling channel test-message telegram --message "hello from hatchling" --live --json
 ```
 
 ### Directory Structure
