@@ -69,6 +69,10 @@ hatchling doctor
 hatchling doctor --json
 ```
 
+Doctor also validates channel consistency:
+- enabled channel capability must have a matching gateway limb
+- missing channel env vars are reported as warnings
+
 ### Commands Inside Hatchling
 
 - `/sleep` - Perform evolution cycle (snapshot → synthesize → commit)
@@ -110,6 +114,9 @@ hatchling evolve "Install skill from file:///tmp/skill-repo" --execute --skillSu
 
 # Enforce explicit approval for risky actions
 hatchling evolve "Use Claude and add MCP filesystem access" --execute --enforceApprovals --approvePlan
+
+# Roll back the most recent evolve run
+hatchling rollback
 ```
 
 ### MCP Server Commands
@@ -137,6 +144,9 @@ hatchling capability list
 
 # Enable a provider only when needed
 hatchling capability enable chat.anthropic --provider anthropic --model claude-3-5-sonnet-20241022
+
+# Enable a channel capability (auto-bootstraps the gateway limb)
+hatchling capability enable channel.telegram
 
 # Disable an optional capability
 hatchling capability disable chat.anthropic

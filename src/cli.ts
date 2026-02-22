@@ -97,6 +97,66 @@ async function runDoctorChecks(): Promise<{ checks: DoctorCheck[]; ok: boolean }
             : { key: `instance_file:${rel}`, level: "fail", message: `Missing ${rel}` },
         );
       }
+
+      try {
+        const { loadCapabilities } = await import("./system/capabilities.js");
+        const registry = await loadCapabilities(instancePath);
+        const channelDefs = [
+          { name: "telegram", capability: "channel.telegram", defaults: ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"] },
+          { name: "whatsapp", capability: "channel.whatsapp", defaults: ["WHATSAPP_ACCESS_TOKEN", "WHATSAPP_PHONE_NUMBER_ID"] },
+        ] as const;
+
+        for (const channel of channelDefs) {
+          const state = registry.capabilities[channel.capability];
+          if (!state?.enabled) continue;
+
+          const skillPath = join(instancePath, "limbs", `${channel.name}-gateway`, "SKILL.md");
+          checks.push(
+            existsSync(skillPath)
+              ? {
+                  key: `channel_${channel.name}_gateway`,
+                  level: "pass",
+                  message: `${channel.name} gateway limb present`,
+                }
+              : {
+                  key: `channel_${channel.name}_gateway`,
+                  level: "fail",
+                  message: `${channel.name} capability enabled but gateway limb missing`,
+                },
+          );
+
+          const envNames =
+            channel.name === "telegram"
+              ? [
+                  String(state.metadata?.botTokenEnvVar || channel.defaults[0]),
+                  String(state.metadata?.chatIdEnvVar || channel.defaults[1]),
+                ]
+              : [
+                  String(state.metadata?.accessTokenEnvVar || channel.defaults[0]),
+                  String(state.metadata?.phoneNumberIdEnvVar || channel.defaults[1]),
+                ];
+          const missing = envNames.filter((envName) => !process.env[envName]);
+          checks.push(
+            missing.length === 0
+              ? {
+                  key: `channel_${channel.name}_env`,
+                  level: "pass",
+                  message: `${channel.name} env ready (${envNames.join(", ")})`,
+                }
+              : {
+                  key: `channel_${channel.name}_env`,
+                  level: "warn",
+                  message: `${channel.name} env missing (${missing.join(", ")})`,
+                },
+          );
+        }
+      } catch (error: any) {
+        checks.push({
+          key: "capabilities_read",
+          level: "warn",
+          message: `Unable to read capabilities: ${String(error?.message || error)}`,
+        });
+      }
     }
   }
 
@@ -952,12 +1012,21 @@ const main = defineCommand({
               process.exit(1);
             }
             const rootDir = getInstancePath(activeInstance);
+            const capabilityName = String(args.name).trim().toLowerCase();
+            if (capabilityName === "channel.telegram" || capabilityName === "channel.whatsapp") {
+              const { bootstrapChannelCapability } = await import("./system/channels.js");
+              const channel = capabilityName.split(".")[1];
+              const result = await bootstrapChannelCapability(rootDir, channel);
+              clack.log.success(`Enabled ${capabilityName} via ${result.skillPath}.`);
+              return;
+            }
+
             const { enableCapability } = await import("./system/capabilities.js");
-            const state = await enableCapability(rootDir, String(args.name), {
+            const state = await enableCapability(rootDir, capabilityName, {
               provider: args.provider ? String(args.provider) : undefined,
               model: args.model ? String(args.model) : undefined,
             });
-            clack.log.success(`Enabled ${String(args.name)} (${state.enabled ? "enabled" : "disabled"}).`);
+            clack.log.success(`Enabled ${capabilityName} (${state.enabled ? "enabled" : "disabled"}).`);
           },
         }),
         disable: defineCommand({

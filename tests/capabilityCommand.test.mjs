@@ -109,3 +109,43 @@ test("capability enable fails when provider readiness is missing", async () => {
 
   await fs.rm(testHome, { recursive: true, force: true });
 });
+
+test("capability enable for channel bootstraps gateway limb", async () => {
+  const testHome = path.join(process.cwd(), ".tmp-test-home-capability-channel");
+  await fs.rm(testHome, { recursive: true, force: true });
+  await fs.mkdir(testHome, { recursive: true });
+
+  const env = { ...process.env, HATCHLING_HOME: testHome, HATCHLING_HINDBRAIN_BACKEND: "cpu" };
+  const init = spawnSync(
+    "node",
+    [
+      "dist/cli.js",
+      "init",
+      "--non-interactive",
+      "--name",
+      "cap-channel-seed",
+      "--purpose",
+      "Validate channel capability bootstrap",
+      "--personality",
+      "curious,direct",
+    ],
+    { cwd: process.cwd(), env, encoding: "utf-8" },
+  );
+  assert.equal(init.status, 0, `${init.stdout}\n${init.stderr}`);
+
+  const enable = spawnSync(
+    "node",
+    ["dist/cli.js", "capability", "enable", "channel.telegram"],
+    { cwd: process.cwd(), env, encoding: "utf-8" },
+  );
+  assert.equal(enable.status, 0, `${enable.stdout}\n${enable.stderr}`);
+
+  const skillPath = path.join(testHome, ".hatchlings", "cap-channel-seed", "limbs", "telegram-gateway", "SKILL.md");
+  await fs.access(skillPath);
+
+  const capsPath = path.join(testHome, ".hatchlings", "cap-channel-seed", "brain", "capabilities.json");
+  const caps = JSON.parse(await fs.readFile(capsPath, "utf-8"));
+  assert.equal(caps.capabilities["channel.telegram"].enabled, true);
+
+  await fs.rm(testHome, { recursive: true, force: true });
+});

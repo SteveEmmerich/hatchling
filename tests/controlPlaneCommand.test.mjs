@@ -46,6 +46,8 @@ test("config command flow: init -> validate -> apply updates state files", async
   const control = JSON.parse(await fs.readFile(controlPath, "utf-8"));
   control.provider = { name: "openai", model: "gpt-4o-mini" };
   control.capabilities["chat.openai"] = { enabled: true, metadata: {} };
+  control.channels.telegram.botTokenEnvVar = "TG_TOKEN_CUSTOM";
+  control.channels.telegram.chatIdEnvVar = "TG_CHAT_CUSTOM";
   control.channels.telegram.enabled = true;
   control.policies.skillInstall.requireApprovalForUntrusted = false;
   control.policies.evolve.enforceApprovals = true;
@@ -76,6 +78,11 @@ test("config command flow: init -> validate -> apply updates state files", async
   const caps = JSON.parse(await fs.readFile(capsPath, "utf-8"));
   assert.equal(caps.capabilities["chat.openai"].enabled, true);
   assert.equal(caps.capabilities["channel.telegram"].enabled, true);
+  assert.equal(caps.capabilities["channel.telegram"].metadata.botTokenEnvVar, "TG_TOKEN_CUSTOM");
+  assert.equal(caps.capabilities["channel.telegram"].metadata.chatIdEnvVar, "TG_CHAT_CUSTOM");
+
+  const telegramSkill = path.join(instanceRoot, "limbs", "telegram-gateway", "SKILL.md");
+  await fs.access(telegramSkill);
 
   const skillPolicyPath = path.join(instanceRoot, "brain", "skill_policy.json");
   const skillPolicy = JSON.parse(await fs.readFile(skillPolicyPath, "utf-8"));

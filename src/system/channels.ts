@@ -89,7 +89,10 @@ function channelRequiredEnv(channel: SupportedChannel, metadata: Record<string, 
   ];
 }
 
-export async function bootstrapChannelCapability(rootDir: string, channelName: string): Promise<{ channel: SupportedChannel; skillPath: string }> {
+export async function ensureChannelGatewaySkill(
+  rootDir: string,
+  channelName: string,
+): Promise<{ channel: SupportedChannel; skillPath: string }> {
   const channel = ensureSupported(channelName);
   const skillDir = path.join(rootDir, "limbs", channelSkillName(channel));
   if (!existsSync(skillDir)) {
@@ -110,11 +113,17 @@ export async function bootstrapChannelCapability(rootDir: string, channelName: s
     );
   }
 
+  return { channel, skillPath: skillDir };
+}
+
+export async function bootstrapChannelCapability(rootDir: string, channelName: string): Promise<{ channel: SupportedChannel; skillPath: string }> {
+  const { channel, skillPath } = await ensureChannelGatewaySkill(rootDir, channelName);
+
   await enableCapability(rootDir, channelCapabilityName(channel), {
     ...defaultChannelMetadata(channel),
   });
 
-  return { channel, skillPath: skillDir };
+  return { channel, skillPath };
 }
 
 export async function validateChannelCapability(rootDir: string, channelName: string): Promise<ChannelValidationResult> {

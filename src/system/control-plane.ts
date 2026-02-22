@@ -4,6 +4,7 @@ import path from "path";
 import { z } from "zod";
 import { loadCapabilities, type CapabilityRegistry, checkProviderReadiness } from "./capabilities.js";
 import { listMCPServers, type MCPServerConfig } from "./mcp.js";
+import { ensureChannelGatewaySkill } from "./channels.js";
 
 const CONTROL_PLANE_FILE = "brain/control-plane.json";
 const SKILL_POLICY_FILE = "brain/skill_policy.json";
@@ -244,6 +245,13 @@ export async function applyControlPlane(rootDir: string, controlPlane: ControlPl
     createdAt: server.createdAt || new Date().toISOString(),
   }));
   await fs.writeFile(path.join(rootDir, MCP_FILE), JSON.stringify({ servers: mcpServers }, null, 2), "utf-8");
+
+  if (validated.channels.telegram.enabled) {
+    await ensureChannelGatewaySkill(rootDir, "telegram");
+  }
+  if (validated.channels.whatsapp.enabled) {
+    await ensureChannelGatewaySkill(rootDir, "whatsapp");
+  }
 
   await writeControlPlane(rootDir, validated);
 }
