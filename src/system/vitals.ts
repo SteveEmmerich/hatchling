@@ -3,6 +3,16 @@ import { checkHealth } from './health.js';
 import { execSync } from 'child_process';
 import fs from 'fs/promises';
 
+async function readJsonOrDefault<T>(relativePath: string, fallback: T): Promise<T> {
+  try {
+    const jsonPath = await PathGuard.validatePath(relativePath, 'read');
+    const content = await fs.readFile(jsonPath, 'utf-8');
+    return JSON.parse(content) as T;
+  } catch {
+    return fallback;
+  }
+}
+
 export async function getVitals() {
   const root = PathGuard.getAgentRoot();
 
@@ -14,17 +24,20 @@ export async function getVitals() {
   const health = await checkHealth();
 
   // 3. Mutation State & Success Ratio (Biological Integrity)
-  const mutationStatePath = await PathGuard.validatePath('brain/mutation_state.json', 'read');
-  const mutationStateContent = await fs.readFile(mutationStatePath, 'utf-8');
-  const mutationState = JSON.parse(mutationStateContent);
+  const mutationState = await readJsonOrDefault('brain/mutation_state.json', {
+    mutationsToday: 0,
+    totalMutations: 0,
+    successfulMutations: 0,
+  });
   const successRatio = mutationState.totalMutations > 0
     ? ((mutationState.successfulMutations / mutationState.totalMutations) * 100).toFixed(1)
     : '0.0';
 
   // 4. Quotas & Energy (Metabolism)
-  const quotasPath = await PathGuard.validatePath('brain/quotas.json', 'read');
-  const quotasContent = await fs.readFile(quotasPath, 'utf-8');
-  const quotas = JSON.parse(quotasContent);
+  const quotas = await readJsonOrDefault('brain/quotas.json', {
+    tokens: { today: 0, maxPerDay: 100000 },
+    disk: { current: 0, max: 1024 * 1024 * 1024 },
+  });
   const tokenUsagePercent = (quotas.tokens.today / quotas.tokens.maxPerDay) * 100;
   const energyLevel = tokenUsagePercent > 90 ? 'Critical' : tokenUsagePercent > 70 ? 'Low' : 'High';
 
