@@ -158,6 +158,14 @@ export function renderWebInterface(config: WebInterfaceConfig): string {
   assert.equal(evolvePlan.details.success, true);
   assert.equal(evolvePlan.details.plan.actions.length >= 2, true);
 
+  const blockedEvolve = await evolveGoal.execute("tool-call-4d", {
+    goal: "Use Claude for better chat quality",
+    execute: true,
+    requireApproval: true,
+  });
+  assert.equal(blockedEvolve.details.success, false);
+  assert.match(String(blockedEvolve.details.error || ""), /approval required/i);
+
   await fs.rm(repoDir, { recursive: true, force: true });
 
   await instance.deleteInstance("ext");

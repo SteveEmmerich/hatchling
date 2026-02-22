@@ -12,6 +12,11 @@ export interface CapabilityRegistry {
   capabilities: Record<string, CapabilityState>;
 }
 
+export interface ProviderReadiness {
+  ok: boolean;
+  message: string;
+}
+
 const CAPABILITY_FILE = "brain/capabilities.json";
 
 const DEFAULT_CAPABILITIES = [
@@ -104,16 +109,47 @@ export async function setCapabilityState(
   return registry.capabilities[name];
 }
 
+export function checkProviderReadiness(provider: string): ProviderReadiness {
+  const normalized = provider.trim().toLowerCase();
+  if (normalized === "hindbrain") {
+    return { ok: true, message: "Hindbrain is always locally available." };
+  }
+  if (normalized === "openai") {
+    return process.env.OPENAI_API_KEY
+      ? { ok: true, message: "OPENAI_API_KEY detected." }
+      : { ok: false, message: "OPENAI_API_KEY is required to enable OpenAI chat." };
+  }
+  if (normalized === "anthropic") {
+    return process.env.ANTHROPIC_API_KEY
+      ? { ok: true, message: "ANTHROPIC_API_KEY detected." }
+      : { ok: false, message: "ANTHROPIC_API_KEY is required to enable Anthropic chat." };
+  }
+  if (normalized === "ollama") {
+    return { ok: true, message: "Ollama provider enabled (availability checked at runtime)." };
+  }
+  return { ok: false, message: `Unknown provider '${provider}'.` };
+}
+
 export async function enableCapability(
   rootDir: string,
   name: string,
-  options: { provider?: string; model?: string } = {},
+  options: { provider?: string; model?: string; skipReadinessCheck?: boolean } = {},
 ): Promise<CapabilityState> {
   const normalized = name.trim().toLowerCase();
-  const next = await setCapabilityState(rootDir, normalized, true, options);
+  let provider = options.provider || normalized.split(".")[1] || "hindbrain";
+  if (normalized.startsWith("chat.")) {
+    provider = options.provider || normalized.split(".")[1] || "hindbrain";
+    if (!options.skipReadinessCheck) {
+      const readiness = checkProviderReadiness(provider);
+      if (!readiness.ok) {
+        throw new Error(readiness.message);
+      }
+    }
+  }
+
+  const next = await setCapabilityState(rootDir, normalized, true, { ...options, provider });
 
   if (normalized.startsWith("chat.")) {
-    const provider = options.provider || normalized.split(".")[1] || "hindbrain";
     const modelDefaults: Record<string, string> = {
       hindbrain: "hindbrain-1b",
       openai: "gpt-4o",

@@ -22,6 +22,17 @@ export interface EvolveExecutionResult {
   message: string;
 }
 
+export function isRiskyEvolveAction(action: EvolveAction): boolean {
+  return action.type === "install_skill"
+    || action.type === "mutate_web_limb"
+    || action.type === "add_mcp"
+    || action.type === "enable_capability";
+}
+
+export function listRiskyEvolveActions(plan: EvolvePlan): EvolveAction[] {
+  return plan.actions.filter((action) => isRiskyEvolveAction(action));
+}
+
 function findRepoSource(goal: string): string | null {
   const patterns = [
     /(https?:\/\/[^\s'"]+)/i,

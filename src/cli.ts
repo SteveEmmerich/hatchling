@@ -777,6 +777,16 @@ const main = defineCommand({
           type: "string",
           description: "Optional skill subdirectory to use for install actions",
         },
+        enforceApprovals: {
+          type: "boolean",
+          default: false,
+          description: "Require explicit approval before executing risky actions",
+        },
+        approvePlan: {
+          type: "boolean",
+          default: false,
+          description: "Approve execution of risky actions when approvals are enforced",
+        },
       },
       async run({ args }) {
         const activeInstance = await getActiveInstance();
@@ -785,13 +795,31 @@ const main = defineCommand({
           process.exit(1);
         }
         const rootDir = getInstancePath(activeInstance);
-        const { planEvolution, executeEvolutionPlan } = await import("./system/evolve.js");
+        const { planEvolution, executeEvolutionPlan, listRiskyEvolveActions } = await import("./system/evolve.js");
 
         const plan = planEvolution(String(args.goal));
+        const riskyActions = listRiskyEvolveActions(plan);
+        const approvalsEnforced = Boolean(args.enforceApprovals);
+        const approvedByFlag = Boolean(args.approvePlan);
         if (args.json) {
           if (!args.execute) {
             console.log(JSON.stringify({ mode: "plan", plan }, null, 2));
             return;
+          }
+          if (approvalsEnforced && riskyActions.length > 0 && !approvedByFlag) {
+            console.log(
+              JSON.stringify(
+                {
+                  mode: "execute",
+                  plan,
+                  error: "Approvals required for risky actions. Re-run with --approvePlan.",
+                  riskyActions: riskyActions.map((action) => action.type),
+                },
+                null,
+                2,
+              ),
+            );
+            process.exit(1);
           }
           const results = await executeEvolutionPlan(rootDir, plan, {
             approveUntrusted: Boolean(args.approveUntrusted),
@@ -817,6 +845,20 @@ const main = defineCommand({
           clack.log.info("Dry-run complete. Re-run with --execute to apply.");
           clack.outro("");
           return;
+        }
+
+        if (approvalsEnforced && riskyActions.length > 0 && !approvedByFlag) {
+          clack.log.warn(
+            `Risky actions pending approval: ${riskyActions.map((action) => action.type).join(", ")}`,
+          );
+          const confirm = await clack.confirm({
+            message: "Approve and execute risky evolution actions?",
+            initialValue: false,
+          });
+          if (clack.isCancel(confirm) || !confirm) {
+            clack.cancel("Execution cancelled: approval not granted.");
+            process.exit(1);
+          }
         }
 
         const results = await executeEvolutionPlan(rootDir, plan, {

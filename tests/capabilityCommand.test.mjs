@@ -9,7 +9,12 @@ test("capability commands list and enable optional chat provider", async () => {
   await fs.rm(testHome, { recursive: true, force: true });
   await fs.mkdir(testHome, { recursive: true });
 
-  const env = { ...process.env, HATCHLING_HOME: testHome, HATCHLING_HINDBRAIN_BACKEND: "cpu" };
+  const env = {
+    ...process.env,
+    HATCHLING_HOME: testHome,
+    HATCHLING_HINDBRAIN_BACKEND: "cpu",
+    OPENAI_API_KEY: "test-openai-key",
+  };
   const init = spawnSync(
     "node",
     [
@@ -56,6 +61,51 @@ test("capability commands list and enable optional chat provider", async () => {
   const config = JSON.parse(await fs.readFile(configPath, "utf-8"));
   assert.equal(config.provider, "openai");
   assert.equal(config.model, "gpt-4o-mini");
+
+  await fs.rm(testHome, { recursive: true, force: true });
+});
+
+test("capability enable fails when provider readiness is missing", async () => {
+  const testHome = path.join(process.cwd(), ".tmp-test-home-capability-missing-key");
+  await fs.rm(testHome, { recursive: true, force: true });
+  await fs.mkdir(testHome, { recursive: true });
+
+  const env = { ...process.env, HATCHLING_HOME: testHome, HATCHLING_HINDBRAIN_BACKEND: "cpu" };
+  delete env.OPENAI_API_KEY;
+
+  const init = spawnSync(
+    "node",
+    [
+      "dist/cli.js",
+      "init",
+      "--non-interactive",
+      "--name",
+      "cap-missing-seed",
+      "--purpose",
+      "Validate provider readiness checks",
+      "--personality",
+      "curious,direct",
+    ],
+    { cwd: process.cwd(), env, encoding: "utf-8" },
+  );
+  assert.equal(init.status, 0, `${init.stdout}\n${init.stderr}`);
+
+  const enable = spawnSync(
+    "node",
+    ["dist/cli.js", "capability", "enable", "chat.openai"],
+    { cwd: process.cwd(), env, encoding: "utf-8" },
+  );
+  assert.notEqual(enable.status, 0, `${enable.stdout}\n${enable.stderr}`);
+  assert.match(`${enable.stdout}\n${enable.stderr}`, /OPENAI_API_KEY is required/i);
+
+  const listAfter = spawnSync("node", ["dist/cli.js", "capability", "list", "--json"], {
+    cwd: process.cwd(),
+    env,
+    encoding: "utf-8",
+  });
+  assert.equal(listAfter.status, 0, `${listAfter.stdout}\n${listAfter.stderr}`);
+  const after = JSON.parse(listAfter.stdout);
+  assert.equal(after.capabilities["chat.openai"].enabled, false);
 
   await fs.rm(testHome, { recursive: true, force: true });
 });

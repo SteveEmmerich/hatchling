@@ -110,5 +110,7 @@ Updated: 2026-02-22
 - Scope:
   - Added capability registry with explicit enable/disable controls so external providers are never mandatory.
   - Added capability-aware evolve actions that enable chat providers only when goals request them.
+  - Added provider readiness validation so chat capability switches fail fast when required credentials are missing.
+  - Added optional approval gate for risky evolve actions before execution.
 - Acceptance:
-  - Capability CLI and evolve provider-enablement flows are e2e tested and pass in full verify.
+  - Capability CLI, readiness checks, and evolve approval/provider-enablement flows are e2e tested and pass in full verify.

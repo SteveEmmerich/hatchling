@@ -107,6 +107,9 @@ hatchling evolve "Install skill from https://github.com/example/skill-pack.git a
 
 # Execute planned actions
 hatchling evolve "Install skill from file:///tmp/skill-repo" --execute --skillSubdir skills/core
+
+# Enforce explicit approval for risky actions
+hatchling evolve "Use Claude and add MCP filesystem access" --execute --enforceApprovals --approvePlan
 ```
 
 ### MCP Server Commands
@@ -138,6 +141,10 @@ hatchling capability enable chat.anthropic --provider anthropic --model claude-3
 # Disable an optional capability
 hatchling capability disable chat.anthropic
 ```
+
+Provider readiness checks:
+- `chat.openai` requires `OPENAI_API_KEY`
+- `chat.anthropic` requires `ANTHROPIC_API_KEY`
 
 ### Directory Structure
 

@@ -215,16 +215,30 @@ export default function (pi: ExtensionAPI) {
     parameters: Type.Object({
       goal: Type.String({ description: "Natural-language goal" }),
       execute: Type.Optional(Type.Boolean({ description: "Execute planned actions if true" })),
+      requireApproval: Type.Optional(Type.Boolean({ description: "Require approval for risky actions" })),
+      approvePlan: Type.Optional(Type.Boolean({ description: "Approve risky actions when required" })),
       approveUntrusted: Type.Optional(Type.Boolean({ description: "Approve untrusted repo installs" })),
       skillSubdir: Type.Optional(Type.String({ description: "Optional skill subdirectory for install actions" })),
     }),
     async execute(_toolCallId, params) {
-      const { planEvolution, executeEvolutionPlan } = await import("./system/evolve.js");
+      const { planEvolution, executeEvolutionPlan, listRiskyEvolveActions } = await import("./system/evolve.js");
       const plan = planEvolution(params.goal);
+      const risky = listRiskyEvolveActions(plan);
       if (!params.execute) {
         return {
           content: [{ type: "text", text: `🧬 Planned ${plan.actions.length} action(s).` }],
           details: { success: true, plan, results: [] as any[], error: "" },
+        };
+      }
+      if (params.requireApproval && risky.length > 0 && !params.approvePlan) {
+        return {
+          content: [{ type: "text", text: "❌ Approval required for risky evolution actions." }],
+          details: {
+            success: false,
+            plan,
+            results: [] as any[],
+            error: `Approval required for: ${risky.map((action) => action.type).join(", ")}`,
+          },
         };
       }
       const results = await executeEvolutionPlan(rootDir, plan, {
