@@ -97,6 +97,13 @@ export async function generateDNAFiles(
       null,
       2,
     ),
+    "evolve_policy.json": JSON.stringify(
+      {
+        enforceApprovals: false,
+      },
+      null,
+      2,
+    ),
     "mcp_servers.json": JSON.stringify({ servers: [] }, null, 2),
     "capabilities.json": JSON.stringify(
       {

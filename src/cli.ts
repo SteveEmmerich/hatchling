@@ -656,6 +656,112 @@ const main = defineCommand({
       },
     }),
 
+    config: defineCommand({
+      meta: {
+        description: "Manage editable control-plane configuration for active instance",
+      },
+      subCommands: {
+        path: defineCommand({
+          meta: { description: "Print control-plane file path" },
+          async run() {
+            const activeInstance = await getActiveInstance();
+            if (!activeInstance) {
+              clack.log.error("No active instance found. Run 'hatchling init' first.");
+              process.exit(1);
+            }
+            const rootDir = getInstancePath(activeInstance);
+            const { controlPlanePath } = await import("./system/control-plane.js");
+            console.log(controlPlanePath(rootDir));
+          },
+        }),
+        init: defineCommand({
+          meta: { description: "Generate control-plane.json from current state" },
+          async run() {
+            const activeInstance = await getActiveInstance();
+            if (!activeInstance) {
+              clack.log.error("No active instance found. Run 'hatchling init' first.");
+              process.exit(1);
+            }
+            const rootDir = getInstancePath(activeInstance);
+            const { initControlPlane } = await import("./system/control-plane.js");
+            const target = await initControlPlane(rootDir);
+            clack.log.success(`Control-plane initialized: ${target}`);
+          },
+        }),
+        show: defineCommand({
+          meta: { description: "Show control-plane JSON" },
+          args: {
+            json: {
+              type: "boolean",
+              default: false,
+              description: "Print compact JSON",
+            },
+          },
+          async run({ args }) {
+            const activeInstance = await getActiveInstance();
+            if (!activeInstance) {
+              clack.log.error("No active instance found. Run 'hatchling init' first.");
+              process.exit(1);
+            }
+            const rootDir = getInstancePath(activeInstance);
+            const { readControlPlane } = await import("./system/control-plane.js");
+            const control = await readControlPlane(rootDir);
+            console.log(JSON.stringify(control, null, args.json ? 0 : 2));
+          },
+        }),
+        validate: defineCommand({
+          meta: { description: "Validate control-plane JSON schema" },
+          async run() {
+            const activeInstance = await getActiveInstance();
+            if (!activeInstance) {
+              clack.log.error("No active instance found. Run 'hatchling init' first.");
+              process.exit(1);
+            }
+            const rootDir = getInstancePath(activeInstance);
+            const { readControlPlane, validateControlPlane } = await import("./system/control-plane.js");
+            const control = await readControlPlane(rootDir);
+            validateControlPlane(control);
+            clack.log.success("Control-plane is valid.");
+          },
+        }),
+        apply: defineCommand({
+          meta: { description: "Apply control-plane.json to runtime state files" },
+          args: {
+            json: {
+              type: "boolean",
+              default: false,
+              description: "Print machine-readable result",
+            },
+          },
+          async run({ args }) {
+            const activeInstance = await getActiveInstance();
+            if (!activeInstance) {
+              clack.log.error("No active instance found. Run 'hatchling init' first.");
+              process.exit(1);
+            }
+            const rootDir = getInstancePath(activeInstance);
+            const { readControlPlane, applyControlPlane } = await import("./system/control-plane.js");
+            try {
+              const control = await readControlPlane(rootDir);
+              await applyControlPlane(rootDir, control);
+              if (args.json) {
+                console.log(JSON.stringify({ ok: true }, null, 2));
+              } else {
+                clack.log.success("Control-plane applied successfully.");
+              }
+            } catch (error: any) {
+              if (args.json) {
+                console.log(JSON.stringify({ ok: false, error: String(error.message || error) }, null, 2));
+              } else {
+                clack.log.error(String(error.message || error));
+              }
+              process.exit(1);
+            }
+          },
+        }),
+      },
+    }),
+
     capability: defineCommand({
       meta: {
         description: "List and toggle optional capabilities for the active instance",
@@ -796,10 +902,12 @@ const main = defineCommand({
         }
         const rootDir = getInstancePath(activeInstance);
         const { planEvolution, executeEvolutionPlan, listRiskyEvolveActions } = await import("./system/evolve.js");
+        const { getEvolvePolicy } = await import("./system/control-plane.js");
 
         const plan = planEvolution(String(args.goal));
         const riskyActions = listRiskyEvolveActions(plan);
-        const approvalsEnforced = Boolean(args.enforceApprovals);
+        const evolvePolicy = await getEvolvePolicy(rootDir);
+        const approvalsEnforced = Boolean(args.enforceApprovals) || evolvePolicy.enforceApprovals;
         const approvedByFlag = Boolean(args.approvePlan);
         if (args.json) {
           if (!args.execute) {

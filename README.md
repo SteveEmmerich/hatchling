@@ -146,6 +146,25 @@ Provider readiness checks:
 - `chat.openai` requires `OPENAI_API_KEY`
 - `chat.anthropic` requires `ANTHROPIC_API_KEY`
 
+### Control-Plane Config (Single JSON)
+
+```bash
+# Generate the editable config from current instance state
+hatchling config init
+
+# Print path to control-plane file
+hatchling config path
+
+# Show current control-plane JSON
+hatchling config show
+
+# Validate schema
+hatchling config validate
+
+# Apply edited control-plane JSON to runtime state files
+hatchling config apply
+```
+
 ### Directory Structure
 
 ```

@@ -114,3 +114,12 @@ Updated: 2026-02-22
   - Added optional approval gate for risky evolve actions before execution.
 - Acceptance:
   - Capability CLI, readiness checks, and evolve approval/provider-enablement flows are e2e tested and pass in full verify.
+
+9. Unified Control-Plane Config
+- Status: Complete
+- Scope:
+  - Added per-instance `brain/control-plane.json` as the canonical editable configuration.
+  - Added `hatchling config path/show/init/validate/apply` workflow for safe editing and synchronization.
+  - Wired evolve approval defaults to `brain/evolve_policy.json` managed through control-plane apply.
+- Acceptance:
+  - Control-plane round-trip (`init -> validate -> apply`) is test-covered and full verify passes.
