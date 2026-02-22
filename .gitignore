@@ -6,3 +6,5 @@ daemon.pid
 memory/telemetry/
 memory/backups/
 dist/
+bun.lock
+.hatchling

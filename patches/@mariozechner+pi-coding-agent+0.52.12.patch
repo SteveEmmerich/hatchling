@@ -1,0 +1,8 @@
+diff --git a/node_modules/@mariozechner/pi-coding-agent/dist/core/models/providers/ollama.js b/node_modules/@mariozechner/pi-coding-agent/dist/core/models/providers/ollama.jsindex 1a2b3c4..8d9e0f1 100644--- a/node_modules/@mariozechner/pi-coding-agent/dist/core/models/providers/ollama.js+++ b/node_modules/@mariozechner/pi-coding-agent/dist/core/models/providers/ollama.js@@ -10,7 +10,14 @@ export class OllamaProvider extends BaseProvider {constructor(config) {super(config);this.id = "ollama";   this.baseURL = config.baseURL || "http://localhost:11434";
+   // Patch: Prioritize explicit environment variables and 127.0.0.1 for faster discovery
+   this.baseURL = 
+       process.env.PI_OLLAMA_BASE_URL || 
+       process.env.OLLAMA_BASE_URL || 
+       config.baseURL || 
+       "http://127.0.0.1:11434";
+}async listModels() {try {const response = await fetch(${this.baseURL}/api/tags);

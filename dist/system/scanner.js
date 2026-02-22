@@ -1,4 +1,6 @@
 import { PathGuard } from './pathGuard.js';
+import fs from 'fs/promises';
+import path from 'path';
 export class SecurityScanner {
     static BANNED_PATTERNS = [
         { regex: /eval\s*\(/, name: 'eval()' },
@@ -33,9 +35,8 @@ export class SecurityScanner {
      */
     static async validateFile(filePath) {
         const validPath = await PathGuard.validatePath(filePath, 'read');
-        // Using bun's file API for reading
-        const file = Bun.file(validPath);
-        const content = await file.text();
+        // Using fs/promises for reading (Node.js compatible)
+        const content = await fs.readFile(validPath, 'utf-8');
         this.scanCode(content, path.basename(filePath));
     }
 }

@@ -6,7 +6,7 @@ export class VectorMemory {
     static async loadStore() {
         try {
             const path = await PathGuard.validatePath('memory/vector_store.json', 'read');
-            return await Bun.file(path).json();
+            return JSON.parse(await fs.readFile(path, 'utf-8'));
         }
         catch {
             return [];
@@ -25,7 +25,7 @@ export class VectorMemory {
             if (!response.ok)
                 throw new Error('Ollama embedding failed');
             const data = await response.json();
-            return data.embedding;
+            return Array.isArray(data.embedding) ? data.embedding : [];
         }
         catch (e) {
             Telemetry.warn('Vector embedding failed (Ollama offline?)', { error: e.message });

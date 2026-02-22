@@ -1,16 +1,12 @@
-export declare class ProtectedFileError extends Error {
-    constructor(filePath: string);
-}
+/**
+ * PATH: src/system/pathGuard.ts
+ */
 export declare class PathGuard {
-    static isProtected(relativePath: string): boolean;
-    /**
-     * Validate and resolve a path for filesystem operations.
-     * Ensures the path is inside the agent territory and not protected (for writes).
-     */
-    static validatePath(requestedPath: string, operation?: 'read' | 'write'): Promise<string>;
-    /**
-     * Redact sensitive information from logs or output.
-     */
-    static redact(content: string): string;
+    private static rootDir;
+    static setRoot(root: string): void;
+    static getRoot(): string;
+    static getAgentRoot(): string;
+    static redact(input: string): string;
+    static validatePath(requested: string, op?: "read" | "write"): Promise<string>;
 }
 //# sourceMappingURL=pathGuard.d.ts.map

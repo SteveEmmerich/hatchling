@@ -1,2 +1,2 @@
-export declare function createSnapshot(): Promise<void>;
+export declare function createSnapshot(): Promise<string>;
 //# sourceMappingURL=backup.d.ts.map

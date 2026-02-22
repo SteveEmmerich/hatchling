@@ -1,13 +1,14 @@
 import path from 'path';
 import fs from 'fs/promises';
+import { spawn } from 'child_process';
 import { SecurityScanner } from './scanner.js';
 import { PathGuard } from './pathGuard.js';
 export class MutationEngine {
     static async getMutationBudget() {
         const statePath = await PathGuard.validatePath('brain/mutation_state.json', 'read');
-        const state = await Bun.file(statePath).json();
+        const state = JSON.parse(await fs.readFile(statePath, 'utf-8'));
         const configPath = await PathGuard.validatePath('brain/config.json', 'read');
-        const config = await Bun.file(configPath).json();
+        const config = JSON.parse(await fs.readFile(configPath, 'utf-8'));
         return config.mutations.dailyCap - state.mutationsToday;
     }
     static async useMutationBudget(name) {
@@ -16,7 +17,7 @@ export class MutationEngine {
             throw new Error(`Mutation Budget Exhausted: Daily limit reached.`);
         }
         const statePath = await PathGuard.validatePath('brain/mutation_state.json', 'write');
-        const state = await Bun.file(statePath).json();
+        const state = JSON.parse(await fs.readFile(statePath, 'utf-8'));
         state.mutationsToday++;
         state.totalMutations++;
         state.mutationsThisCycle++;
@@ -44,20 +45,21 @@ export class MutationEngine {
         // 4. Dry-run Dependencies
         if (Object.keys(manifest.dependencies).length > 0) {
             console.log(`🔍 Checking dependencies for ${manifest.name}...`);
-            // Simulating dependency check or installing to temp location
-            // In a real scenario, we might use bun install --dry-run or similar in isolation
+            // Simulating dependency check or installing to temp location.
         }
         // 5. Syntax Verification
         try {
             console.log(`🔬 Verifying syntax...`);
-            // Bun build --dry-run (checking if it compiles)
-            const proc = Bun.spawn(['bun', 'build', stagingPath, '--no-bundle'], {
-                stderr: 'pipe'
+            const proc = spawn('node', ['--check', stagingPath], { stdio: ['ignore', 'ignore', 'pipe'] });
+            let stderr = '';
+            proc.stderr.on('data', (chunk) => {
+                stderr += chunk.toString();
             });
-            const exitCode = await proc.exited;
+            const exitCode = await new Promise((resolve) => {
+                proc.on('close', (code) => resolve(code ?? 1));
+            });
             if (exitCode !== 0) {
-                const error = await new Response(proc.stderr).text();
-                throw new Error(`Syntax Error: ${error}`);
+                throw new Error(`Syntax Error: ${stderr.trim() || 'node --check failed'}`);
             }
             console.log(`✅ Syntax Verified`);
         }

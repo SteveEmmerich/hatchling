@@ -3,7 +3,8 @@ import fs from 'fs/promises';
 export async function getAgentName(rootDir) {
     try {
         const configPath = await PathGuard.validatePath('brain/config.json', 'read');
-        const config = await Bun.file(configPath).json();
+        const configContent = await fs.readFile(configPath, 'utf-8');
+        const config = JSON.parse(configContent);
         return config.agentName || 'Hatchling';
     }
     catch {
@@ -12,13 +13,11 @@ export async function getAgentName(rootDir) {
 }
 export async function loadCompleteIdentity(rootDir) {
     const files = [
-        { name: 'CONSTITUTION', path: '.self/CONSTITUTION.md' },
-        { name: 'SOUL', path: '.self/SOUL.md' },
-        { name: 'IDENTITY', path: '.self/IDENTITY.md' },
-        { name: 'STYLE', path: '.self/STYLE.md' },
-        { name: 'USER_CORE', path: '.self/USER_CORE.md' },
-        { name: 'USER_CONTEXT', path: '.self/USER_CONTEXT.md' },
-        // EXPERIENCE.md is optional/dynamic
+        { name: 'CONSTITUTION', path: 'brain/CONSTITUTION.md' },
+        { name: 'SOUL', path: 'brain/SOUL.md' },
+        { name: 'IDENTITY', path: 'brain/IDENTITY.md' },
+        { name: 'USER_CORE', path: 'brain/USER_CORE.md' },
+        { name: 'USER_CONTEXT', path: 'brain/USER_CONTEXT.md' },
     ];
     let fullIdentity = '';
     for (const file of files) {
@@ -31,12 +30,12 @@ export async function loadCompleteIdentity(rootDir) {
             if (e.code !== 'ENOENT') {
                 console.warn(`Failed to load ${file.name}: ${e.message}`);
             }
-            // Continue even if a file is missing (except Constitution ideally, but we handle that loosely here)
+            // Continue if a file is missing.
         }
     }
     // Attempt to load EXPERIENCE if it exists
     try {
-        const expPath = await PathGuard.validatePath('.self/EXPERIENCE.md', 'read');
+        const expPath = await PathGuard.validatePath('brain/EXPERIENCE.md', 'read');
         const experience = await fs.readFile(expPath, 'utf-8');
         fullIdentity += `\n\n# EXPERIENCE\n${experience.trim()}`;
     }

@@ -14,4 +14,6 @@ export * from './vector_memory.js';
 export * from './backup.js';
 export * from './feedback.js';
 export * from './debug.js';
+export * from './skills.js';
+export * from './web.js';
 //# sourceMappingURL=index.js.map

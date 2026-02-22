@@ -8,7 +8,8 @@ export async function recordFeedback(sentiment, context) {
     // 2. Adjust Curiosity State
     try {
         const curiosityPath = await PathGuard.validatePath('brain/curiosity_state.json', 'write');
-        const curiosity = await Bun.file(curiosityPath).json();
+        const curiosityData = await fs.readFile(curiosityPath, 'utf-8');
+        const curiosity = JSON.parse(curiosityData);
         // Simple heuristic: Good = +0.5, Bad = -1.0
         // But keep within 1-10 bounds
         const delta = sentiment === 'positive' ? 0.5 : -1.0;
@@ -20,6 +21,9 @@ export async function recordFeedback(sentiment, context) {
             newLevel = 10;
         curiosity.adjustedCuriosity = newLevel;
         curiosity.lastCalculated = timestamp;
+        if (!curiosity.adjustments) {
+            curiosity.adjustments = [];
+        }
         curiosity.adjustments.push({
             timestamp,
             reason: `User Feedback: ${sentiment}`,

@@ -1,10 +1,12 @@
 import { PathGuard } from './pathGuard.js';
 import fs from 'fs/promises';
 import { Telemetry } from './telemetry.js';
+import { execSync } from 'child_process';
 export class QuotaManager {
     static async getQuotas() {
         const path = await PathGuard.validatePath('brain/quotas.json', 'read');
-        return await Bun.file(path).json();
+        const quotasContent = await fs.readFile(path, 'utf-8');
+        return JSON.parse(quotasContent);
     }
     static async checkTokenQuota(amount) {
         const quotas = await this.getQuotas();
@@ -14,7 +16,8 @@ export class QuotaManager {
     }
     static async recordTokenUsage(amount) {
         const path = await PathGuard.validatePath('brain/quotas.json', 'write');
-        const quotas = await Bun.file(path).json();
+        const quotasContent = await fs.readFile(path, 'utf-8');
+        const quotas = JSON.parse(quotasContent);
         quotas.tokens.today += amount;
         quotas.tokens.month += amount;
         await fs.writeFile(path, JSON.stringify(quotas, null, 2));
@@ -22,8 +25,7 @@ export class QuotaManager {
     }
     static async checkDiskUsage() {
         const root = PathGuard.getAgentRoot();
-        const proc = Bun.spawn(['du', '-sm', root], { stdout: 'pipe' });
-        const output = await new Response(proc.stdout).text();
+        const output = execSync(`du -sm "${root}"`, { encoding: 'utf-8' });
         const sizeMB = parseInt(output.split('\t')[0]);
         const quotas = await this.getQuotas();
         const limitMB = quotas.disk.max / (1024 * 1024); // Convert bytes to MB

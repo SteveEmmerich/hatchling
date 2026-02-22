@@ -15,7 +15,7 @@ export async function amputate() {
     console.log('✅ Genetic code reverted to previous state.');
     // 2. Adjust Curiosity (-1)
     const curiosityPath = await PathGuard.validatePath('brain/curiosity_state.json', 'write');
-    const curiosityState = await Bun.file(curiosityPath).json();
+    const curiosityState = JSON.parse(await fs.readFile(curiosityPath, 'utf-8'));
     if (curiosityState.adjustedCuriosity > 1) {
         curiosityState.adjustedCuriosity -= 1;
         curiosityState.lastCalculated = new Date().toISOString();
@@ -27,7 +27,7 @@ export async function amputate() {
     }
     // 3. Log Amputation Event
     const logPath = await PathGuard.validatePath('brain/EVOLUTION_LOG.json', 'write');
-    const log = await Bun.file(logPath).json();
+    const log = JSON.parse(await fs.readFile(logPath, 'utf-8'));
     log.rollbacks = (log.rollbacks || 0) + 1;
     await fs.writeFile(logPath, JSON.stringify(log, null, 2));
 }

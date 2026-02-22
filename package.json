@@ -19,6 +19,7 @@
     "test": "npm run build && node --test tests/**/*.test.mjs",
     "build": "tsc",
     "dev": "npm run build && pi --extension ./dist/extension.js",
+    "prepare": "npm run build",
     "postinstall": "patch-package"
   },
   "keywords": [
