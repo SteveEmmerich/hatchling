@@ -88,6 +88,9 @@ hatchling skill list
 
 # Promote staged skill into active limbs
 hatchling skill promote web-vision
+
+# Install a ready skill from local directory (must contain SKILL.md)
+hatchling skill install /path/to/skill --name web-vision
 ```
 
 ### MCP Server Commands

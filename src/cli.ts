@@ -490,6 +490,40 @@ const main = defineCommand({
             }
           },
         }),
+        install: defineCommand({
+          meta: { description: "Install a skill from a local directory into active limbs" },
+          args: {
+            source: {
+              type: "positional",
+              description: "Local directory containing SKILL.md",
+              required: true,
+            },
+            name: {
+              type: "string",
+              description: "Optional installed skill name override",
+            },
+          },
+          async run({ args }) {
+            const activeInstance = await getActiveInstance();
+            if (!activeInstance) {
+              clack.log.error("No active instance found. Run 'hatchling init' first.");
+              process.exit(1);
+            }
+            const rootDir = getInstancePath(activeInstance);
+            const { installSkillFromDirectory } = await import("./system/skills.js");
+            try {
+              const installed = await installSkillFromDirectory(
+                rootDir,
+                String(args.source),
+                args.name ? String(args.name) : undefined,
+              );
+              clack.log.success(`Installed skill -> ${installed}`);
+            } catch (error) {
+              clack.log.error((error as Error).message);
+              process.exit(1);
+            }
+          },
+        }),
       },
     }),
 

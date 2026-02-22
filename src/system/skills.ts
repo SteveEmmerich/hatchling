@@ -17,6 +17,11 @@ function validateSkillName(name: string): string {
   return normalized;
 }
 
+function normalizeSkillNameFromSource(source: string): string {
+  const base = path.basename(source).trim().toLowerCase().replace(/\s+/g, "-");
+  return validateSkillName(base || "imported-skill");
+}
+
 export async function stageSkill(
   rootDir: string,
   name: string,
@@ -73,4 +78,31 @@ export async function listSkills(rootDir: string): Promise<{
     active: await listDir(path.join(rootDir, "limbs")),
     staged: await listDir(path.join(rootDir, "limbs_staging")),
   };
+}
+
+export async function installSkillFromDirectory(
+  rootDir: string,
+  sourceDir: string,
+  targetName?: string,
+): Promise<string> {
+  const resolvedSource = path.resolve(sourceDir);
+  const skillDoc = path.join(resolvedSource, "SKILL.md");
+  if (!existsSync(resolvedSource)) {
+    throw new Error(`Skill source does not exist: ${resolvedSource}`);
+  }
+  if (!existsSync(skillDoc)) {
+    throw new Error(`Skill source must contain SKILL.md: ${resolvedSource}`);
+  }
+
+  const normalizedName = targetName
+    ? validateSkillName(targetName)
+    : normalizeSkillNameFromSource(resolvedSource);
+  const activeDir = path.join(rootDir, "limbs", normalizedName);
+  if (existsSync(activeDir)) {
+    throw new Error(`Active skill '${normalizedName}' already exists.`);
+  }
+
+  await fs.mkdir(path.dirname(activeDir), { recursive: true });
+  await fs.cp(resolvedSource, activeDir, { recursive: true });
+  return activeDir;
 }

@@ -4,10 +4,14 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 
-test("non-interactive e2e flow: init -> list -> start --smoke -> maintain -> mcp -> doctor", async () => {
+test("non-interactive e2e flow: init -> list -> start --smoke -> maintain -> skill install -> mcp -> doctor", async () => {
   const testHome = path.join(process.cwd(), ".tmp-test-home-e2e");
+  const sourceSkillDir = path.join(process.cwd(), ".tmp-test-skill-source-e2e");
   await fs.rm(testHome, { recursive: true, force: true });
+  await fs.rm(sourceSkillDir, { recursive: true, force: true });
   await fs.mkdir(testHome, { recursive: true });
+  await fs.mkdir(sourceSkillDir, { recursive: true });
+  await fs.writeFile(path.join(sourceSkillDir, "SKILL.md"), "# e2e_bridge\n\nBridge skill.\n", "utf-8");
 
   const env = { ...process.env, HATCHLING_HOME: testHome, HATCHLING_HINDBRAIN_BACKEND: "cpu" };
 
@@ -56,6 +60,17 @@ test("non-interactive e2e flow: init -> list -> start --smoke -> maintain -> mcp
   assert.equal(maintain.status, 0, `${maintain.stdout}\n${maintain.stderr}`);
   assert.match(`${maintain.stdout}\n${maintain.stderr}`, /Maintenance complete/i);
 
+  const skillInstall = spawnSync(
+    "node",
+    ["dist/cli.js", "skill", "install", sourceSkillDir, "--name", "e2e-bridge"],
+    {
+      cwd: process.cwd(),
+      env,
+      encoding: "utf-8",
+    },
+  );
+  assert.equal(skillInstall.status, 0, `${skillInstall.stdout}\n${skillInstall.stderr}`);
+
   const mcpAdd = spawnSync(
     "node",
     ["dist/cli.js", "mcp", "add", "fsbridge", "npx", "@modelcontextprotocol/server-filesystem", "/tmp"],
@@ -85,4 +100,5 @@ test("non-interactive e2e flow: init -> list -> start --smoke -> maintain -> mcp
   assert.equal(report.ok, true);
 
   await fs.rm(testHome, { recursive: true, force: true });
+  await fs.rm(sourceSkillDir, { recursive: true, force: true });
 });
