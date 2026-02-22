@@ -16,7 +16,9 @@
     "projects"
   ],
   "scripts": {
+    "lint": "tsc --noEmit --pretty false",
     "test": "npm run build && node --test tests/**/*.test.mjs",
+    "verify": "npm run lint && npm test",
     "build": "tsc",
     "dev": "npm run build && pi --extension ./dist/extension.js",
     "prepare": "npm run build",

@@ -4,11 +4,27 @@
  */
 
 import { promises as fs } from "fs";
-import { join } from "path";
+import { existsSync } from "fs";
+import { dirname, join, resolve } from "path";
 import { exec } from "child_process";
 import { promisify } from "util";
+import { fileURLToPath } from "url";
 
 const execAsync = promisify(exec);
+const moduleDir = dirname(fileURLToPath(import.meta.url));
+
+function resolveTscCommand(instancePath: string): string {
+  const binName = process.platform === "win32" ? "tsc.cmd" : "tsc";
+  const candidates = [
+    join(instancePath, "node_modules", ".bin", binName),
+    resolve(moduleDir, "..", "..", "node_modules", ".bin", binName),
+  ];
+  const direct = candidates.find((p) => existsSync(p));
+  if (direct) {
+    return `"${direct}" --noEmit`;
+  }
+  return "npx tsc --noEmit";
+}
 
 async function resolveGermlineRef(instancePath: string): Promise<string> {
   try {
@@ -68,7 +84,7 @@ export async function mutate(
 
     // Verify biological integrity with TypeScript
     try {
-      const { stdout, stderr } = await execAsync("npx tsc --noEmit", {
+      const { stdout, stderr } = await execAsync(resolveTscCommand(instancePath), {
         cwd: instancePath,
       });
 
