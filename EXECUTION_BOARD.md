@@ -104,3 +104,11 @@ Updated: 2026-02-22
   - Included trust-gated repo install integration and maintenance/web-limb action inference.
 - Acceptance:
   - Planner and execution flows are test-covered, and full verify suite passes with deterministic outputs.
+
+8. Optional Capability Opt-In Model
+- Status: Complete
+- Scope:
+  - Added capability registry with explicit enable/disable controls so external providers are never mandatory.
+  - Added capability-aware evolve actions that enable chat providers only when goals request them.
+- Acceptance:
+  - Capability CLI and evolve provider-enablement flows are e2e tested and pass in full verify.

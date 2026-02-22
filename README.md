@@ -126,6 +126,19 @@ hatchling mcp export
 hatchling mcp remove filesystem
 ```
 
+### Optional Capability Controls
+
+```bash
+# List capabilities users can opt into
+hatchling capability list
+
+# Enable a provider only when needed
+hatchling capability enable chat.anthropic --provider anthropic --model claude-3-5-sonnet-20241022
+
+# Disable an optional capability
+hatchling capability disable chat.anthropic
+```
+
 ### Directory Structure
 
 ```

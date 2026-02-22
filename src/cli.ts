@@ -656,6 +656,98 @@ const main = defineCommand({
       },
     }),
 
+    capability: defineCommand({
+      meta: {
+        description: "List and toggle optional capabilities for the active instance",
+      },
+      subCommands: {
+        list: defineCommand({
+          meta: { description: "List capability states" },
+          args: {
+            json: {
+              type: "boolean",
+              default: false,
+              description: "Print machine-readable JSON",
+            },
+          },
+          async run({ args }) {
+            const activeInstance = await getActiveInstance();
+            if (!activeInstance) {
+              clack.log.error("No active instance found. Run 'hatchling init' first.");
+              process.exit(1);
+            }
+            const rootDir = getInstancePath(activeInstance);
+            const { listCapabilities } = await import("./system/capabilities.js");
+            const registry = await listCapabilities(rootDir);
+            if (args.json) {
+              console.log(JSON.stringify(registry, null, 2));
+              return;
+            }
+            clack.intro("🧩 Capability Registry");
+            Object.entries(registry.capabilities)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .forEach(([name, state]) => {
+                clack.log.message(`- ${name}: ${state.enabled ? "enabled" : "disabled"}`);
+              });
+            clack.outro("");
+          },
+        }),
+        enable: defineCommand({
+          meta: { description: "Enable a capability" },
+          args: {
+            name: {
+              type: "positional",
+              required: true,
+              description: "Capability name",
+            },
+            provider: {
+              type: "string",
+              description: "Optional provider override (for chat capabilities)",
+            },
+            model: {
+              type: "string",
+              description: "Optional model override (for chat capabilities)",
+            },
+          },
+          async run({ args }) {
+            const activeInstance = await getActiveInstance();
+            if (!activeInstance) {
+              clack.log.error("No active instance found. Run 'hatchling init' first.");
+              process.exit(1);
+            }
+            const rootDir = getInstancePath(activeInstance);
+            const { enableCapability } = await import("./system/capabilities.js");
+            const state = await enableCapability(rootDir, String(args.name), {
+              provider: args.provider ? String(args.provider) : undefined,
+              model: args.model ? String(args.model) : undefined,
+            });
+            clack.log.success(`Enabled ${String(args.name)} (${state.enabled ? "enabled" : "disabled"}).`);
+          },
+        }),
+        disable: defineCommand({
+          meta: { description: "Disable a capability" },
+          args: {
+            name: {
+              type: "positional",
+              required: true,
+              description: "Capability name",
+            },
+          },
+          async run({ args }) {
+            const activeInstance = await getActiveInstance();
+            if (!activeInstance) {
+              clack.log.error("No active instance found. Run 'hatchling init' first.");
+              process.exit(1);
+            }
+            const rootDir = getInstancePath(activeInstance);
+            const { disableCapability } = await import("./system/capabilities.js");
+            const state = await disableCapability(rootDir, String(args.name));
+            clack.log.success(`Disabled ${String(args.name)} (${state.enabled ? "enabled" : "disabled"}).`);
+          },
+        }),
+      },
+    }),
+
     evolve: defineCommand({
       meta: {
         description: "Plan or execute evolution steps from a natural-language goal",

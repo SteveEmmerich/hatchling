@@ -3,9 +3,10 @@ import { installSkillFromSource } from "./skills.js";
 import { addMCPServer } from "./mcp.js";
 import { runMaintenanceTick } from "./maintenance.js";
 import { mutate } from "../organism/evolution.js";
+import { enableCapability } from "./capabilities.js";
 
 export interface EvolveAction {
-  type: "install_skill" | "add_mcp" | "mutate_web_limb" | "maintenance_tick";
+  type: "install_skill" | "add_mcp" | "mutate_web_limb" | "maintenance_tick" | "enable_capability";
   params: Record<string, any>;
   reason: string;
 }
@@ -91,6 +92,38 @@ export function planEvolution(goal: string): EvolvePlan {
     });
   }
 
+  if (normalized.includes("claude") || normalized.includes("anthropic")) {
+    actions.push({
+      type: "enable_capability",
+      params: {
+        name: "chat.anthropic",
+        provider: "anthropic",
+        model: "claude-3-5-sonnet-20241022",
+      },
+      reason: "Goal references Claude/Anthropic chat capability.",
+    });
+  } else if (normalized.includes("openai") || normalized.includes("gpt")) {
+    actions.push({
+      type: "enable_capability",
+      params: {
+        name: "chat.openai",
+        provider: "openai",
+        model: "gpt-4o",
+      },
+      reason: "Goal references OpenAI/GPT chat capability.",
+    });
+  } else if (normalized.includes("ollama")) {
+    actions.push({
+      type: "enable_capability",
+      params: {
+        name: "chat.ollama",
+        provider: "ollama",
+        model: "llama3.2",
+      },
+      reason: "Goal references Ollama chat capability.",
+    });
+  }
+
   return { goal, actions };
 }
 
@@ -162,6 +195,16 @@ export async function executeEvolutionPlan(
           type: action.type,
           success: true,
           message: `Maintenance complete (autoSleep=${report.autoSleepTriggered}, pruned=${report.telemetryPruned})`,
+        });
+      } else if (action.type === "enable_capability") {
+        const state = await enableCapability(rootDir, String(action.params.name), {
+          provider: action.params.provider ? String(action.params.provider) : undefined,
+          model: action.params.model ? String(action.params.model) : undefined,
+        });
+        results.push({
+          type: action.type,
+          success: true,
+          message: `Capability ${String(action.params.name)} ${state.enabled ? "enabled" : "disabled"}`,
         });
       }
     } catch (error: any) {

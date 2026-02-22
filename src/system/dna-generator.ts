@@ -98,6 +98,21 @@ export async function generateDNAFiles(
       2,
     ),
     "mcp_servers.json": JSON.stringify({ servers: [] }, null, 2),
+    "capabilities.json": JSON.stringify(
+      {
+        capabilities: {
+          "chat.hindbrain": { enabled: true, updatedAt: now, metadata: {} },
+          "chat.openai": { enabled: false, updatedAt: now, metadata: {} },
+          "chat.anthropic": { enabled: false, updatedAt: now, metadata: {} },
+          "chat.ollama": { enabled: false, updatedAt: now, metadata: {} },
+          "channel.web": { enabled: true, updatedAt: now, metadata: {} },
+          "channel.telegram": { enabled: false, updatedAt: now, metadata: {} },
+          "channel.whatsapp": { enabled: false, updatedAt: now, metadata: {} },
+        },
+      },
+      null,
+      2,
+    ),
   };
 
   for (const [file, content] of Object.entries(dna)) {

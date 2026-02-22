@@ -19,3 +19,4 @@ export * from './web.js';
 export * from './maintenance.js';
 export * from './mcp.js';
 export * from './evolve.js';
+export * from './capabilities.js';

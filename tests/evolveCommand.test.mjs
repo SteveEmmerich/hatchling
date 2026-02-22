@@ -104,3 +104,51 @@ test("evolve command executes repo skill install action", async () => {
   await fs.rm(testHome, { recursive: true, force: true });
   await fs.rm(repoDir, { recursive: true, force: true });
 });
+
+test("evolve command enables optional chat provider when requested", async () => {
+  const testHome = path.join(process.cwd(), ".tmp-test-home-evolve-provider");
+  await fs.rm(testHome, { recursive: true, force: true });
+  await fs.mkdir(testHome, { recursive: true });
+
+  const env = { ...process.env, HATCHLING_HOME: testHome, HATCHLING_HINDBRAIN_BACKEND: "cpu" };
+  const init = spawnSync(
+    "node",
+    [
+      "dist/cli.js",
+      "init",
+      "--non-interactive",
+      "--name",
+      "evolve-provider-seed",
+      "--purpose",
+      "Validate provider enable via evolve",
+      "--personality",
+      "curious,direct",
+    ],
+    { cwd: process.cwd(), env, encoding: "utf-8" },
+  );
+  assert.equal(init.status, 0, `${init.stdout}\n${init.stderr}`);
+
+  const execute = spawnSync(
+    "node",
+    [
+      "dist/cli.js",
+      "evolve",
+      "Use Claude for better chat quality",
+      "--execute",
+      "--json",
+    ],
+    { cwd: process.cwd(), env, encoding: "utf-8" },
+  );
+  assert.equal(execute.status, 0, `${execute.stdout}\n${execute.stderr}`);
+  const output = JSON.parse(execute.stdout);
+  assert.equal(
+    output.results.some((result) => result.type === "enable_capability" && result.success),
+    true,
+  );
+
+  const configPath = path.join(testHome, ".hatchlings", "evolve-provider-seed", "brain", "config.json");
+  const config = JSON.parse(await fs.readFile(configPath, "utf-8"));
+  assert.equal(config.provider, "anthropic");
+
+  await fs.rm(testHome, { recursive: true, force: true });
+});
