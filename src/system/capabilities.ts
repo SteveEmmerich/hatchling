@@ -86,6 +86,27 @@ async function updateConfigProvider(
   await fs.writeFile(configPath, JSON.stringify(config, null, 2), "utf-8");
 }
 
+export async function getActiveProvider(rootDir: string): Promise<{ provider: string; model: string }> {
+  const configPath = path.join(rootDir, "brain", "config.json");
+  const config = await readConfig(configPath);
+  return {
+    provider: String(config.provider || "hindbrain"),
+    model: String(config.model || "hindbrain-1b"),
+  };
+}
+
+async function readConfig(configPath: string): Promise<Record<string, any>> {
+  try {
+    return JSON.parse(await fs.readFile(configPath, "utf-8"));
+  } catch {
+    return {};
+  }
+}
+
+export async function setActiveProvider(rootDir: string, provider: string, model: string): Promise<void> {
+  await updateConfigProvider(rootDir, provider, model);
+}
+
 export async function listCapabilities(rootDir: string): Promise<CapabilityRegistry> {
   const registry = await loadCapabilities(rootDir);
   await saveCapabilities(rootDir, registry);

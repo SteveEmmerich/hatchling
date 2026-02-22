@@ -263,6 +263,8 @@ test("evolve command bootstraps telegram channel capability when requested", asy
   assert.equal(execute.status, 0, `${execute.stdout}\n${execute.stderr}`);
   const output = JSON.parse(execute.stdout);
   assert.equal(output.results.some((r) => r.type === "bootstrap_channel" && r.success), true);
+  assert.equal(output.plan.actions.some((a) => a.type === "enable_capability" && a.params.name === "chat.hindbrain"), true);
+  assert.equal(output.plan.actions.some((a) => a.type === "bootstrap_channel"), true);
 
   const channels = spawnSync("node", ["dist/cli.js", "channel", "list"], {
     cwd: process.cwd(),

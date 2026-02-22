@@ -1117,6 +1117,61 @@ const main = defineCommand({
       },
     }),
 
+    rollback: defineCommand({
+      meta: {
+        description: "Rollback last (or selected) evolution run using journaled undo actions",
+      },
+      args: {
+        runId: {
+          type: "string",
+          description: "Optional evolution run id to rollback",
+        },
+        json: {
+          type: "boolean",
+          default: false,
+          description: "Print machine-readable result",
+        },
+      },
+      async run({ args }) {
+        const activeInstance = await getActiveInstance();
+        if (!activeInstance) {
+          clack.log.error("No active instance found. Run 'hatchling init' first.");
+          process.exit(1);
+        }
+        const rootDir = getInstancePath(activeInstance);
+        const { rollbackEvolution } = await import("./system/evolve.js");
+
+        try {
+          const result = await rollbackEvolution(
+            rootDir,
+            args.runId ? String(args.runId) : undefined,
+          );
+          if (args.json) {
+            console.log(JSON.stringify(result, null, 2));
+          } else {
+            result.results.forEach((entry) => {
+              if (entry.success) {
+                clack.log.success(`${entry.type}: ${entry.message}`);
+              } else {
+                clack.log.error(`${entry.type}: ${entry.message}`);
+              }
+            });
+            clack.log.success(`Rollback completed for run ${result.runId}.`);
+          }
+          if (!result.ok) {
+            process.exit(1);
+          }
+        } catch (error: any) {
+          if (args.json) {
+            console.log(JSON.stringify({ ok: false, error: String(error.message || error) }, null, 2));
+          } else {
+            clack.log.error(String(error.message || error));
+          }
+          process.exit(1);
+        }
+      },
+    }),
+
     web: defineCommand({
       meta: {
         description: "Run local web dashboard for the active instance",
