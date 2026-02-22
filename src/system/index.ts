@@ -21,3 +21,4 @@ export * from './mcp.js';
 export * from './evolve.js';
 export * from './capabilities.js';
 export * from './control-plane.js';
+export * from './channels.js';

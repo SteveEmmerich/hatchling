@@ -221,3 +221,56 @@ test("evolve execute enforces approval for risky actions when requested", async 
 
   await fs.rm(testHome, { recursive: true, force: true });
 });
+
+test("evolve command bootstraps telegram channel capability when requested", async () => {
+  const testHome = path.join(process.cwd(), ".tmp-test-home-evolve-telegram");
+  await fs.rm(testHome, { recursive: true, force: true });
+  await fs.mkdir(testHome, { recursive: true });
+
+  const env = {
+    ...process.env,
+    HATCHLING_HOME: testHome,
+    HATCHLING_HINDBRAIN_BACKEND: "cpu",
+  };
+  const init = spawnSync(
+    "node",
+    [
+      "dist/cli.js",
+      "init",
+      "--non-interactive",
+      "--name",
+      "evolve-telegram-seed",
+      "--purpose",
+      "Validate telegram evolve bootstrap",
+      "--personality",
+      "curious,direct",
+    ],
+    { cwd: process.cwd(), env, encoding: "utf-8" },
+  );
+  assert.equal(init.status, 0, `${init.stdout}\n${init.stderr}`);
+
+  const execute = spawnSync(
+    "node",
+    [
+      "dist/cli.js",
+      "evolve",
+      "Enable Telegram gateway for communication",
+      "--execute",
+      "--json",
+    ],
+    { cwd: process.cwd(), env, encoding: "utf-8" },
+  );
+  assert.equal(execute.status, 0, `${execute.stdout}\n${execute.stderr}`);
+  const output = JSON.parse(execute.stdout);
+  assert.equal(output.results.some((r) => r.type === "bootstrap_channel" && r.success), true);
+
+  const channels = spawnSync("node", ["dist/cli.js", "channel", "list"], {
+    cwd: process.cwd(),
+    env,
+    encoding: "utf-8",
+  });
+  assert.equal(channels.status, 0, `${channels.stdout}\n${channels.stderr}`);
+  assert.match(`${channels.stdout}\n${channels.stderr}`, /telegram: enabled/i);
+
+  await fs.rm(testHome, { recursive: true, force: true });
+});

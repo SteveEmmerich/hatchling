@@ -165,6 +165,20 @@ hatchling config validate
 hatchling config apply
 ```
 
+### Channel Gateway Kits
+
+```bash
+# Bootstrap gateway + channel capability
+hatchling channel bootstrap telegram
+hatchling channel bootstrap whatsapp
+
+# Validate readiness (capability + required env vars)
+hatchling channel validate telegram --json
+
+# Simulate first delivery (writes to memory/channels/<name>/outbox.jsonl)
+hatchling channel test-message telegram --message "hello from hatchling" --json
+```
+
 ### Directory Structure
 
 ```

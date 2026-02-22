@@ -4,9 +4,10 @@ import { addMCPServer } from "./mcp.js";
 import { runMaintenanceTick } from "./maintenance.js";
 import { mutate } from "../organism/evolution.js";
 import { enableCapability } from "./capabilities.js";
+import { bootstrapChannelCapability } from "./channels.js";
 
 export interface EvolveAction {
-  type: "install_skill" | "add_mcp" | "mutate_web_limb" | "maintenance_tick" | "enable_capability";
+  type: "install_skill" | "add_mcp" | "mutate_web_limb" | "maintenance_tick" | "enable_capability" | "bootstrap_channel";
   params: Record<string, any>;
   reason: string;
 }
@@ -26,7 +27,8 @@ export function isRiskyEvolveAction(action: EvolveAction): boolean {
   return action.type === "install_skill"
     || action.type === "mutate_web_limb"
     || action.type === "add_mcp"
-    || action.type === "enable_capability";
+    || action.type === "enable_capability"
+    || action.type === "bootstrap_channel";
 }
 
 export function listRiskyEvolveActions(plan: EvolvePlan): EvolveAction[] {
@@ -135,6 +137,25 @@ export function planEvolution(goal: string): EvolvePlan {
     });
   }
 
+  if (normalized.includes("telegram")) {
+    actions.push({
+      type: "bootstrap_channel",
+      params: {
+        channel: "telegram",
+      },
+      reason: "Goal references Telegram communication.",
+    });
+  }
+  if (normalized.includes("whatsapp")) {
+    actions.push({
+      type: "bootstrap_channel",
+      params: {
+        channel: "whatsapp",
+      },
+      reason: "Goal references WhatsApp communication.",
+    });
+  }
+
   return { goal, actions };
 }
 
@@ -216,6 +237,14 @@ export async function executeEvolutionPlan(
           type: action.type,
           success: true,
           message: `Capability ${String(action.params.name)} ${state.enabled ? "enabled" : "disabled"}`,
+        });
+      } else if (action.type === "bootstrap_channel") {
+        const channel = String(action.params.channel || "").trim().toLowerCase();
+        const result = await bootstrapChannelCapability(rootDir, channel);
+        results.push({
+          type: action.type,
+          success: true,
+          message: `Bootstrapped ${result.channel} channel (${result.skillPath})`,
         });
       }
     } catch (error: any) {

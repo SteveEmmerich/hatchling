@@ -762,6 +762,136 @@ const main = defineCommand({
       },
     }),
 
+    channel: defineCommand({
+      meta: {
+        description: "Manage communication channel gateway capabilities",
+      },
+      subCommands: {
+        list: defineCommand({
+          meta: { description: "List channel capability states" },
+          async run() {
+            const activeInstance = await getActiveInstance();
+            if (!activeInstance) {
+              clack.log.error("No active instance found. Run 'hatchling init' first.");
+              process.exit(1);
+            }
+            const rootDir = getInstancePath(activeInstance);
+            const { loadCapabilities } = await import("./system/capabilities.js");
+            const caps = await loadCapabilities(rootDir);
+            const telegram = caps.capabilities["channel.telegram"]?.enabled ? "enabled" : "disabled";
+            const whatsapp = caps.capabilities["channel.whatsapp"]?.enabled ? "enabled" : "disabled";
+            clack.intro("📡 Channel Gateways");
+            clack.log.message(`- telegram: ${telegram}`);
+            clack.log.message(`- whatsapp: ${whatsapp}`);
+            clack.outro("");
+          },
+        }),
+        bootstrap: defineCommand({
+          meta: { description: "Bootstrap a channel gateway skill and capability" },
+          args: {
+            name: {
+              type: "positional",
+              required: true,
+              description: "Channel name (telegram|whatsapp)",
+            },
+          },
+          async run({ args }) {
+            const activeInstance = await getActiveInstance();
+            if (!activeInstance) {
+              clack.log.error("No active instance found. Run 'hatchling init' first.");
+              process.exit(1);
+            }
+            const rootDir = getInstancePath(activeInstance);
+            const { bootstrapChannelCapability } = await import("./system/channels.js");
+            try {
+              const result = await bootstrapChannelCapability(rootDir, String(args.name));
+              clack.log.success(`Bootstrapped ${result.channel} gateway at ${result.skillPath}`);
+            } catch (error: any) {
+              clack.log.error(String(error.message || error));
+              process.exit(1);
+            }
+          },
+        }),
+        validate: defineCommand({
+          meta: { description: "Validate channel readiness (env + capability state)" },
+          args: {
+            name: {
+              type: "positional",
+              required: true,
+              description: "Channel name (telegram|whatsapp)",
+            },
+            json: {
+              type: "boolean",
+              default: false,
+              description: "Print machine-readable result",
+            },
+          },
+          async run({ args }) {
+            const activeInstance = await getActiveInstance();
+            if (!activeInstance) {
+              clack.log.error("No active instance found. Run 'hatchling init' first.");
+              process.exit(1);
+            }
+            const rootDir = getInstancePath(activeInstance);
+            const { validateChannelCapability } = await import("./system/channels.js");
+            const result = await validateChannelCapability(rootDir, String(args.name));
+            if (args.json) {
+              console.log(JSON.stringify(result, null, 2));
+            } else if (result.ok) {
+              clack.log.success(result.message);
+            } else {
+              clack.log.error(result.message);
+            }
+            if (!result.ok) process.exit(1);
+          },
+        }),
+        "test-message": defineCommand({
+          meta: { description: "Simulate sending a test message via channel gateway" },
+          args: {
+            name: {
+              type: "positional",
+              required: true,
+              description: "Channel name (telegram|whatsapp)",
+            },
+            message: {
+              type: "string",
+              required: true,
+              description: "Test message payload",
+            },
+            json: {
+              type: "boolean",
+              default: false,
+              description: "Print machine-readable result",
+            },
+          },
+          async run({ args }) {
+            const activeInstance = await getActiveInstance();
+            if (!activeInstance) {
+              clack.log.error("No active instance found. Run 'hatchling init' first.");
+              process.exit(1);
+            }
+            const rootDir = getInstancePath(activeInstance);
+            const { sendChannelTestMessage } = await import("./system/channels.js");
+            try {
+              const result = await sendChannelTestMessage(rootDir, String(args.name), String(args.message));
+              if (args.json) {
+                console.log(JSON.stringify(result, null, 2));
+              } else {
+                clack.log.success(`Test message queued in ${result.outboxPath}`);
+              }
+            } catch (error: any) {
+              if (args.json) {
+                console.log(JSON.stringify({ ok: false, error: String(error.message || error) }, null, 2));
+              } else {
+                clack.log.error(String(error.message || error));
+              }
+              process.exit(1);
+            }
+          },
+        }),
+      },
+    }),
+
     capability: defineCommand({
       meta: {
         description: "List and toggle optional capabilities for the active instance",

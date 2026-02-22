@@ -123,3 +123,11 @@ Updated: 2026-02-22
   - Wired evolve approval defaults to `brain/evolve_policy.json` managed through control-plane apply.
 - Acceptance:
   - Control-plane round-trip (`init -> validate -> apply`) is test-covered and full verify passes.
+
+10. Channel Bootstrap Kits (Telegram/WhatsApp)
+- Status: Complete (MVP)
+- Scope:
+  - Added `channel bootstrap|validate|test-message|list` workflow with simulated first-message delivery logging.
+  - Added evolve-planner channel inference and execution (`bootstrap_channel`) for natural-language goals.
+- Acceptance:
+  - Channel CLI and evolve channel bootstrap paths are test-covered and pass in full verify.
