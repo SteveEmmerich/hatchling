@@ -23,3 +23,4 @@ export * from './capabilities.js';
 export * from './control-plane.js';
 export * from './channels.js';
 export * from './evolve-journal.js';
+export * from './autonomy.js';

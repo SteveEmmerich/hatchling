@@ -1186,6 +1186,95 @@ const main = defineCommand({
       },
     }),
 
+    autonomy: defineCommand({
+      meta: {
+        description: "Run a bounded autonomous multi-step evolution loop",
+      },
+      args: {
+        goal: {
+          type: "positional",
+          required: true,
+          description: "High-level natural-language objective",
+        },
+        execute: {
+          type: "boolean",
+          default: false,
+          description: "Execute planned steps (default is dry-run)",
+        },
+        maxSteps: {
+          type: "string",
+          default: "5",
+          description: "Maximum number of planned objectives to process",
+        },
+        json: {
+          type: "boolean",
+          default: false,
+          description: "Print machine-readable output",
+        },
+        enforceApprovals: {
+          type: "boolean",
+          default: false,
+          description: "Require approval for risky actions in each step",
+        },
+        approvePlan: {
+          type: "boolean",
+          default: false,
+          description: "Approve risky actions when approvals are enforced",
+        },
+        approveUntrusted: {
+          type: "boolean",
+          default: false,
+          description: "Approve untrusted repository installs",
+        },
+        skillSubdir: {
+          type: "string",
+          description: "Optional skill subdirectory for install actions",
+        },
+      },
+      async run({ args }) {
+        const activeInstance = await getActiveInstance();
+        if (!activeInstance) {
+          clack.log.error("No active instance found. Run 'hatchling init' first.");
+          process.exit(1);
+        }
+        const rootDir = getInstancePath(activeInstance);
+        const { runAutonomousEvolution } = await import("./system/autonomy.js");
+        const { getEvolvePolicy } = await import("./system/control-plane.js");
+
+        const evolvePolicy = await getEvolvePolicy(rootDir);
+        const approvalsEnforced = Boolean(args.enforceApprovals) || evolvePolicy.enforceApprovals;
+        const maxSteps = Number(args.maxSteps || "5");
+        const result = await runAutonomousEvolution(rootDir, String(args.goal), {
+          execute: Boolean(args.execute),
+          maxSteps: Number.isFinite(maxSteps) && maxSteps > 0 ? Math.floor(maxSteps) : 5,
+          enforceApprovals: approvalsEnforced,
+          approvePlan: Boolean(args.approvePlan),
+          approveUntrusted: Boolean(args.approveUntrusted),
+          skillSubdir: args.skillSubdir ? String(args.skillSubdir) : undefined,
+        });
+
+        if (args.json) {
+          console.log(JSON.stringify(result, null, 2));
+        } else {
+          clack.intro("🧭 Autonomous Evolution");
+          clack.log.message(`Run: ${result.runId}`);
+          result.steps.forEach((step) => {
+            clack.log.message(
+              `${step.index}. [${step.status}] ${step.objective} (${step.plan.actions.length} action(s))`,
+            );
+          });
+          if (result.stoppedReason) {
+            clack.log.warn(`Stopped early: ${result.stoppedReason}`);
+          }
+          clack.outro(result.ok ? "Autonomy run complete." : "Autonomy run completed with blocking issues.");
+        }
+
+        if (!result.ok) {
+          process.exit(1);
+        }
+      },
+    }),
+
     rollback: defineCommand({
       meta: {
         description: "Rollback last (or selected) evolution run using journaled undo actions",

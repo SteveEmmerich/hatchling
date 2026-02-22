@@ -264,4 +264,41 @@ export default function (pi: ExtensionAPI) {
       };
     },
   });
+
+  pi.registerTool({
+    name: "autonomy_loop",
+    label: "Autonomy Loop",
+    description: "Run a bounded autonomous multi-step evolution loop.",
+    parameters: Type.Object({
+      goal: Type.String({ description: "High-level objective" }),
+      execute: Type.Optional(Type.Boolean({ description: "Execute planned steps if true" })),
+      maxSteps: Type.Optional(Type.Number({ description: "Maximum planned steps (default 5)" })),
+      requireApproval: Type.Optional(Type.Boolean({ description: "Require approval for risky steps" })),
+      approvePlan: Type.Optional(Type.Boolean({ description: "Approve risky steps when required" })),
+      approveUntrusted: Type.Optional(Type.Boolean({ description: "Approve untrusted repo installs" })),
+      skillSubdir: Type.Optional(Type.String({ description: "Optional skill subdirectory for install actions" })),
+    }),
+    async execute(_toolCallId, params) {
+      const { runAutonomousEvolution } = await import("./system/autonomy.js");
+      const result = await runAutonomousEvolution(rootDir, params.goal, {
+        execute: Boolean(params.execute),
+        maxSteps: params.maxSteps ? Number(params.maxSteps) : undefined,
+        enforceApprovals: Boolean(params.requireApproval),
+        approvePlan: Boolean(params.approvePlan),
+        approveUntrusted: Boolean(params.approveUntrusted),
+        skillSubdir: params.skillSubdir,
+      });
+      return {
+        content: [
+          {
+            type: "text",
+            text: result.ok
+              ? `✅ Autonomy loop completed (${result.steps.length} step(s)).`
+              : `❌ Autonomy loop stopped: ${result.stoppedReason || "failure"}.`,
+          },
+        ],
+        details: result,
+      };
+    },
+  });
 }

@@ -119,6 +119,16 @@ hatchling evolve "Use Claude and add MCP filesystem access" --execute --enforceA
 hatchling rollback
 ```
 
+### Autonomous Evolution Loop
+
+```bash
+# Plan a bounded multi-step autonomy run (dry-run)
+hatchling autonomy "Enable Telegram gateway then run maintenance" --maxSteps 4 --json
+
+# Execute autonomy loop with approval guardrails
+hatchling autonomy "Use Claude then run maintenance" --execute --enforceApprovals --approvePlan --json
+```
+
 ### MCP Server Commands
 
 ```bash

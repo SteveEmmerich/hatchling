@@ -60,6 +60,7 @@ test("extension registers evolution tools and executes mutate_self/sync_germline
   assert.ok(tools.has("generate_backup"));
   assert.ok(tools.has("install_skill"));
   assert.ok(tools.has("evolve_goal"));
+  assert.ok(tools.has("autonomy_loop"));
 
   const mutateSelf = tools.get("mutate_self");
   const mutateResult = await mutateSelf.execute("tool-call-1", {
@@ -165,6 +166,14 @@ export function renderWebInterface(config: WebInterfaceConfig): string {
   });
   assert.equal(blockedEvolve.details.success, false);
   assert.match(String(blockedEvolve.details.error || ""), /approval required/i);
+
+  const autonomyLoop = tools.get("autonomy_loop");
+  const autonomyPlan = await autonomyLoop.execute("tool-call-4e", {
+    goal: "Enable Telegram gateway then run maintenance",
+    maxSteps: 4,
+  });
+  assert.equal(typeof autonomyPlan.details.ok, "boolean");
+  assert.equal(autonomyPlan.details.steps.length >= 1, true);
 
   await fs.rm(repoDir, { recursive: true, force: true });
 

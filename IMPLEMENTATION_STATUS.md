@@ -5,7 +5,7 @@ Last updated: 2026-02-22
 ## Verified Current State
 
 - Build: `npm run build` passes.
-- Tests: `npm test` passes (Node test harness, 34/34).
+- Tests: `npm test` passes (Node test harness, 40/40).
 - Runtime target: Node.js (Bun runtime APIs removed from `src/`).
 - Extension API: aligned with `@mariozechner/pi-coding-agent@0.52.12`.
 - Discovery mode: Hindbrain-first onboarding is the active path.
@@ -14,6 +14,7 @@ Last updated: 2026-02-22
 - Control-plane model: single editable `brain/control-plane.json` with `init/show/validate/apply`.
 - Optional capability model: providers and channels are opt-in; channel enablement now bootstraps gateway limbs.
 - Evolution safety: `hatchling evolve` supports approval policy and rollback via `hatchling rollback`.
+- Autonomous loop: `hatchling autonomy` supports bounded multi-step planning/execution with approval gates and run logging.
 - Manual E2E:
   - `hatchling init` completes with degraded local discovery prompts when Hindbrain model init fails.
   - `hatchling start` resolves active instance path and launches the pi subprocess.
@@ -23,7 +24,7 @@ Last updated: 2026-02-22
 - CLI lifecycle commands in `src/cli.ts`:
   - `init`, `start`, `use`, `list`, `delete`
 - Operational commands:
-  - `doctor`, `maintain`, `web`, `mcp`, `capability`, `channel`, `config`, `evolve`, `rollback`
+  - `doctor`, `maintain`, `web`, `mcp`, `capability`, `channel`, `config`, `evolve`, `autonomy`, `rollback`
 - Onboarding + identity generation:
   - `src/system/discovery.ts`
   - `src/system/hindbrain-discovery.ts`
@@ -32,7 +33,7 @@ Last updated: 2026-02-22
 - Extension runtime + registered tools/commands:
   - `src/extension.ts`
   - Commands: `vitals`, `sleep`, `good`, `bad`
-  - Tools: `mutate_self`, `sync_germline`, `generate_backup`
+  - Tools: `mutate_self`, `sync_germline`, `generate_backup`, `evolve_goal`, `autonomy_loop`
 - Safety and territory controls:
   - `src/system/pathGuard.ts`
   - `src/system/scanner.ts`
@@ -44,15 +45,16 @@ Last updated: 2026-02-22
 ## Current Gaps (Product Goal vs Current Build)
 
 1. Conversational runtime UX depth
-- Interactive in-session experience still needs more natural multi-turn identity co-creation and social behavior polish.
+- Identity onboarding is now conversational-first with narrative inference plus iterative revision.
+- In-session social behavior polish still needs deeper personality adaptation over time.
 
 2. Real transport adapters
 - Telegram/WhatsApp flows are scaffolded and validated with simulated delivery logs.
 - Production network adapter execution paths are not yet implemented in this repo.
 
 3. Autonomous long-horizon planning
-- Goal-to-action planning works for bounded actions.
-- Autonomous multi-step self-directed planning/execution loops still need explicit guardrails and productization.
+- Bounded autonomy loop is implemented with approval guards and run logs.
+- Still needed: richer self-directed strategy updates across sessions (goal reprioritization, reflection heuristics).
 
 ## Completion Criteria for First Stable Release
 
