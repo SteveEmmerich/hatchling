@@ -207,6 +207,12 @@ hatchling channel test-message telegram --message "hello from hatchling" --json
 
 # Send live test delivery through provider API
 hatchling channel test-message telegram --message "hello from hatchling" --live --json
+
+# Run one live chat runtime tick (separate from maintenance loop)
+hatchling channel run telegram --json
+
+# Run continuous live chat loop
+hatchling channel run whatsapp --watch --interval 15000
 ```
 
 Bootstrap now also installs a reusable shared skill at `limbs/channel-mcp-bridge` with recommended MCP server references for Telegram and WhatsApp.

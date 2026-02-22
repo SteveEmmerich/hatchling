@@ -5,7 +5,7 @@ Last updated: 2026-02-22
 ## Verified Current State
 
 - Build: `npm run build` passes.
-- Tests: `npm test` passes (Node test harness, 42/42).
+- Tests: `npm test` passes (Node test harness, 44/44).
 - Runtime target: Node.js (Bun runtime APIs removed from `src/`).
 - Extension API: aligned with `@mariozechner/pi-coding-agent@0.52.12`.
 - Discovery mode: Hindbrain-first onboarding is the active path.
@@ -18,6 +18,7 @@ Last updated: 2026-02-22
 - Autonomous loop: `hatchling autonomy` supports bounded multi-step planning/execution with approval gates and run logging.
 - Cross-session autonomy strategy: persistent prioritized goal backlog + run reflections in `brain/autonomy_strategy.json` and `brain/autonomy_reflections.md`.
 - Channel transport: `channel test-message` supports simulated or live provider API mode (`--live`).
+- Channel runtime loop: `channel run <telegram|whatsapp>` provides a dedicated live chat loop separate from maintenance.
 - Manual E2E:
   - `hatchling init` completes with degraded local discovery prompts when Hindbrain model init fails.
   - `hatchling start` resolves active instance path and launches the pi subprocess.
@@ -52,8 +53,9 @@ Last updated: 2026-02-22
 - In-session social behavior polish still needs deeper personality adaptation over time.
 
 2. Real transport adapters
-- Telegram/WhatsApp bootstrap and validation are implemented.
-- Live provider test-message path is implemented; full ongoing conversation gateway runtime is still pending.
+- Telegram/WhatsApp bootstrap, validation, and dedicated runtime loops are implemented.
+- Telegram live polling and ingestion are implemented; WhatsApp ingestion currently uses webhook-file queue input.
+- Still needed: production webhook ingress service and richer conversation routing/response policies.
 
 3. Autonomous long-horizon planning
 - Bounded autonomy loop is implemented with approval guards and run logs.

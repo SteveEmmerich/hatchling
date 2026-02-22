@@ -14,6 +14,21 @@ export default function (pi: ExtensionAPI) {
       const { startMaintenanceLoop } = await import("./system/maintenance.js");
       await startMaintenanceLoop(rootDir);
     }
+    if (process.env.HATCHLING_CHANNEL_RUNTIME !== "0") {
+      try {
+        const { loadCapabilities } = await import("./system/capabilities.js");
+        const { startChannelRuntimeLoop } = await import("./system/channel-runtime.js");
+        const caps = await loadCapabilities(rootDir);
+        if (caps.capabilities["channel.telegram"]?.enabled) {
+          await startChannelRuntimeLoop(rootDir, "telegram");
+        }
+        if (caps.capabilities["channel.whatsapp"]?.enabled) {
+          await startChannelRuntimeLoop(rootDir, "whatsapp");
+        }
+      } catch {
+        // Channel runtime is optional; continue if setup fails.
+      }
+    }
 
     try {
       const configPath = path.join(rootDir, "brain", "config.json");

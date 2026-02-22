@@ -961,6 +961,84 @@ const main = defineCommand({
             }
           },
         }),
+        run: defineCommand({
+          meta: { description: "Run live channel runtime loop (separate from maintenance loop)" },
+          args: {
+            name: {
+              type: "positional",
+              required: true,
+              description: "Channel name (telegram|whatsapp)",
+            },
+            watch: {
+              type: "boolean",
+              default: false,
+              description: "Run continuously; otherwise run one tick",
+            },
+            interval: {
+              type: "string",
+              default: "15000",
+              description: "Loop interval in milliseconds when --watch is set",
+            },
+            autoReply: {
+              type: "boolean",
+              default: false,
+              description: "Auto-ack inbound messages when true",
+            },
+            json: {
+              type: "boolean",
+              default: false,
+              description: "Print machine-readable result",
+            },
+          },
+          async run({ args }) {
+            const activeInstance = await getActiveInstance();
+            if (!activeInstance) {
+              clack.log.error("No active instance found. Run 'hatchling init' first.");
+              process.exit(1);
+            }
+            const rootDir = getInstancePath(activeInstance);
+            const channelName = String(args.name).trim().toLowerCase();
+            if (channelName !== "telegram" && channelName !== "whatsapp") {
+              clack.log.error("Unsupported channel. Use telegram or whatsapp.");
+              process.exit(1);
+            }
+            const channel = channelName as "telegram" | "whatsapp";
+            const { runChannelRuntimeTick, startChannelRuntimeLoop, stopChannelRuntimeLoop } = await import("./system/channel-runtime.js");
+
+            if (!args.watch) {
+              const report = await runChannelRuntimeTick(rootDir, channel, {
+                autoReply: Boolean(args.autoReply),
+              });
+              if (args.json) {
+                console.log(JSON.stringify(report, null, 2));
+              } else if (report.ok) {
+                clack.log.success(
+                  `${channel} runtime tick complete: processed=${report.processed}`,
+                );
+              } else {
+                clack.log.warn(`${channel} runtime blocked: ${report.blocked}`);
+              }
+              if (!report.ok) process.exit(1);
+              return;
+            }
+
+            const interval = Number(args.interval || "15000");
+            if (!Number.isFinite(interval) || interval < 1000) {
+              clack.log.error(`Invalid interval: ${String(args.interval)} (must be >= 1000)`);
+              process.exit(1);
+            }
+            await startChannelRuntimeLoop(rootDir, channel, interval, {
+              autoReply: Boolean(args.autoReply),
+            });
+            clack.intro(`📨 ${channel} Channel Runtime`);
+            clack.log.info(`Running every ${interval}ms for ${activeInstance}`);
+            clack.log.info("Press Ctrl+C to stop.");
+            process.on("SIGINT", () => {
+              stopChannelRuntimeLoop(rootDir, channel);
+              process.exit(0);
+            });
+          },
+        }),
       },
     }),
 
