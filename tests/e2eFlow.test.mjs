@@ -2,16 +2,22 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
+import { spawnSync, execSync } from "node:child_process";
 
 test("non-interactive e2e flow: init -> list -> start --smoke -> maintain -> skill install -> mcp -> doctor", async () => {
   const testHome = path.join(process.cwd(), ".tmp-test-home-e2e");
-  const sourceSkillDir = path.join(process.cwd(), ".tmp-test-skill-source-e2e");
+  const sourceSkillRepo = path.join(process.cwd(), ".tmp-test-skill-repo-e2e");
   await fs.rm(testHome, { recursive: true, force: true });
-  await fs.rm(sourceSkillDir, { recursive: true, force: true });
+  await fs.rm(sourceSkillRepo, { recursive: true, force: true });
   await fs.mkdir(testHome, { recursive: true });
-  await fs.mkdir(sourceSkillDir, { recursive: true });
-  await fs.writeFile(path.join(sourceSkillDir, "SKILL.md"), "# e2e_bridge\n\nBridge skill.\n", "utf-8");
+  await fs.mkdir(path.join(sourceSkillRepo, "skills", "e2e"), { recursive: true });
+  await fs.writeFile(path.join(sourceSkillRepo, "skills", "e2e", "SKILL.md"), "# e2e_bridge\n\nBridge skill.\n", "utf-8");
+  execSync("git init", { cwd: sourceSkillRepo, stdio: "ignore" });
+  execSync('git config user.name "Test"', { cwd: sourceSkillRepo, stdio: "ignore" });
+  execSync('git config user.email "test@example.com"', { cwd: sourceSkillRepo, stdio: "ignore" });
+  execSync("git config commit.gpgsign false", { cwd: sourceSkillRepo, stdio: "ignore" });
+  execSync("git add .", { cwd: sourceSkillRepo, stdio: "ignore" });
+  execSync('git commit -m "init repo skill"', { cwd: sourceSkillRepo, stdio: "ignore" });
 
   const env = { ...process.env, HATCHLING_HOME: testHome, HATCHLING_HINDBRAIN_BACKEND: "cpu" };
 
@@ -62,7 +68,16 @@ test("non-interactive e2e flow: init -> list -> start --smoke -> maintain -> ski
 
   const skillInstall = spawnSync(
     "node",
-    ["dist/cli.js", "skill", "install", sourceSkillDir, "--name", "e2e-bridge"],
+    [
+      "dist/cli.js",
+      "skill",
+      "install",
+      `file://${sourceSkillRepo}`,
+      "--subdir",
+      "skills/e2e",
+      "--name",
+      "e2e-bridge",
+    ],
     {
       cwd: process.cwd(),
       env,
@@ -100,5 +115,5 @@ test("non-interactive e2e flow: init -> list -> start --smoke -> maintain -> ski
   assert.equal(report.ok, true);
 
   await fs.rm(testHome, { recursive: true, force: true });
-  await fs.rm(sourceSkillDir, { recursive: true, force: true });
+  await fs.rm(sourceSkillRepo, { recursive: true, force: true });
 });

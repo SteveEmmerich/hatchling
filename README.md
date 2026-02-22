@@ -91,6 +91,9 @@ hatchling skill promote web-vision
 
 # Install a ready skill from local directory (must contain SKILL.md)
 hatchling skill install /path/to/skill --name web-vision
+
+# Install a skill from a git repo URL
+hatchling skill install https://github.com/example/skill-pack.git --subdir skills/web --name web-vision
 ```
 
 ### MCP Server Commands

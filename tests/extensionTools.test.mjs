@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { execSync } from "node:child_process";
 
 test("extension registers evolution tools and executes mutate_self/sync_germline", async () => {
   const testHome = path.join(process.cwd(), ".tmp-test-home-extension");
@@ -57,6 +58,7 @@ test("extension registers evolution tools and executes mutate_self/sync_germline
   assert.ok(tools.has("mutate_self"));
   assert.ok(tools.has("sync_germline"));
   assert.ok(tools.has("generate_backup"));
+  assert.ok(tools.has("install_skill"));
 
   const mutateSelf = tools.get("mutate_self");
   const mutateResult = await mutateSelf.execute("tool-call-1", {
@@ -121,6 +123,27 @@ export function renderWebInterface(config: WebInterfaceConfig): string {
   assert.equal(backupResult.details.success, true);
   assert.match(backupResult.content[0].text, /backup snapshot completed/i);
   await fs.access(backupResult.details.bundlePath);
+
+  const repoDir = path.join(process.cwd(), ".tmp-skill-repo-extension");
+  await fs.rm(repoDir, { recursive: true, force: true });
+  await fs.mkdir(repoDir, { recursive: true });
+  await fs.writeFile(path.join(repoDir, "SKILL.md"), "# ext_repo_skill\n\nskill from repo\n", "utf-8");
+  execSync("git init", { cwd: repoDir, stdio: "ignore" });
+  execSync('git config user.name "Test"', { cwd: repoDir, stdio: "ignore" });
+  execSync('git config user.email "test@example.com"', { cwd: repoDir, stdio: "ignore" });
+  execSync("git config commit.gpgsign false", { cwd: repoDir, stdio: "ignore" });
+  execSync("git add .", { cwd: repoDir, stdio: "ignore" });
+  execSync('git commit -m "init skill"', { cwd: repoDir, stdio: "ignore" });
+
+  const installSkill = tools.get("install_skill");
+  const installResult = await installSkill.execute("tool-call-4", {
+    source: `file://${repoDir}`,
+    name: "repo-skill",
+  });
+  assert.equal(installResult.details.success, true);
+  assert.match(installResult.content[0].text, /installed skill/i);
+  await fs.access(path.join(instancePath, "limbs", "repo-skill", "SKILL.md"));
+  await fs.rm(repoDir, { recursive: true, force: true });
 
   await instance.deleteInstance("ext");
   await fs.rm(testHome, { recursive: true, force: true });

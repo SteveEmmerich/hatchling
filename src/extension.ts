@@ -174,4 +174,35 @@ export default function (pi: ExtensionAPI) {
       }
     },
   });
+
+  pi.registerTool({
+    name: "install_skill",
+    label: "Install Skill",
+    description: "Install a skill from a local path or repository URL into active limbs.",
+    parameters: Type.Object({
+      source: Type.String({ description: "Local path or git repository URL" }),
+      name: Type.Optional(Type.String({ description: "Optional installed skill name override" })),
+      subdir: Type.Optional(Type.String({ description: "Optional skill subdirectory in source" })),
+    }),
+    async execute(_toolCallId, params) {
+      const { installSkillFromSource } = await import("./system/skills.js");
+      try {
+        const installedPath = await installSkillFromSource(
+          rootDir,
+          params.source,
+          params.name,
+          params.subdir,
+        );
+        return {
+          content: [{ type: "text", text: `✅ Installed skill from ${params.source}` }],
+          details: { success: true, installedPath, error: "" },
+        };
+      } catch (error: any) {
+        return {
+          content: [{ type: "text", text: `❌ Skill install failed: ${error.message}` }],
+          details: { success: false, installedPath: "", error: String(error.message || error) },
+        };
+      }
+    },
+  });
 }

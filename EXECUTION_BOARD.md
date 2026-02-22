@@ -87,3 +87,11 @@ Updated: 2026-02-22
   - Persisted MCP state into `brain/mcp_servers.json`.
 - Acceptance:
   - CLI and e2e tests validate registry lifecycle and Pi-compatible export output.
+
+6. Conversational Repo Skill Intake
+- Status: Complete (MVP)
+- Scope:
+  - Added skill install from local path or repository URL (`file://`, `https://`, `git@`, `.git`) with optional subdirectory targeting.
+  - Exposed `install_skill` tool so users can provide repositories conversationally during agent sessions.
+- Acceptance:
+  - Unit/integration/e2e tests validate repo-backed skill installation through CLI and extension tooling.

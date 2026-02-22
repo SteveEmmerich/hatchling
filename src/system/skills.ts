@@ -1,6 +1,9 @@
 import fs from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
+import os from "os";
+import { execFile } from "child_process";
+import { promisify } from "util";
 
 export interface StagedSkill {
   name: string;
@@ -8,6 +11,8 @@ export interface StagedSkill {
   createdAt: string;
   status: "staged";
 }
+
+const execFileAsync = promisify(execFile);
 
 function validateSkillName(name: string): string {
   const normalized = name.trim().toLowerCase();
@@ -105,4 +110,56 @@ export async function installSkillFromDirectory(
   await fs.mkdir(path.dirname(activeDir), { recursive: true });
   await fs.cp(resolvedSource, activeDir, { recursive: true });
   return activeDir;
+}
+
+function isRepoSource(source: string): boolean {
+  return /^(https?:\/\/|ssh:\/\/|git@|file:\/\/)/i.test(source) || source.endsWith(".git");
+}
+
+async function cloneRepoToTemp(source: string): Promise<string> {
+  const cloneBase = await fs.mkdtemp(path.join(os.tmpdir(), "hatchling-skill-"));
+  const target = path.join(cloneBase, "repo");
+  await execFileAsync("git", ["clone", "--depth", "1", source, target], {
+    timeout: 120000,
+  });
+  return target;
+}
+
+export async function installSkillFromSource(
+  rootDir: string,
+  source: string,
+  targetName?: string,
+  subdir?: string,
+): Promise<string> {
+  const trimmedSource = source.trim();
+  const relativeSubdir = (subdir || "").trim();
+
+  if (!trimmedSource) {
+    throw new Error("Skill source is required.");
+  }
+
+  if (existsSync(trimmedSource)) {
+    const sourcePath = relativeSubdir
+      ? path.join(path.resolve(trimmedSource), relativeSubdir)
+      : trimmedSource;
+    return installSkillFromDirectory(rootDir, sourcePath, targetName);
+  }
+
+  if (!isRepoSource(trimmedSource)) {
+    throw new Error(`Unsupported skill source: ${trimmedSource}`);
+  }
+
+  let clonedPath = "";
+  try {
+    clonedPath = await cloneRepoToTemp(trimmedSource);
+    const sourcePath = relativeSubdir ? path.join(clonedPath, relativeSubdir) : clonedPath;
+    return await installSkillFromDirectory(rootDir, sourcePath, targetName);
+  } catch (error: any) {
+    throw new Error(`Failed to install skill from repository: ${error.message || String(error)}`);
+  } finally {
+    if (clonedPath) {
+      const root = path.dirname(clonedPath);
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  }
 }

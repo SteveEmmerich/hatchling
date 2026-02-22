@@ -491,16 +491,20 @@ const main = defineCommand({
           },
         }),
         install: defineCommand({
-          meta: { description: "Install a skill from a local directory into active limbs" },
+          meta: { description: "Install a skill from local directory or repository into active limbs" },
           args: {
             source: {
               type: "positional",
-              description: "Local directory containing SKILL.md",
+              description: "Local path or git repository URL",
               required: true,
             },
             name: {
               type: "string",
               description: "Optional installed skill name override",
+            },
+            subdir: {
+              type: "string",
+              description: "Optional skill subdirectory within source/repo",
             },
           },
           async run({ args }) {
@@ -510,12 +514,13 @@ const main = defineCommand({
               process.exit(1);
             }
             const rootDir = getInstancePath(activeInstance);
-            const { installSkillFromDirectory } = await import("./system/skills.js");
+            const { installSkillFromSource } = await import("./system/skills.js");
             try {
-              const installed = await installSkillFromDirectory(
+              const installed = await installSkillFromSource(
                 rootDir,
                 String(args.source),
                 args.name ? String(args.name) : undefined,
+                args.subdir ? String(args.subdir) : undefined,
               );
               clack.log.success(`Installed skill -> ${installed}`);
             } catch (error) {
