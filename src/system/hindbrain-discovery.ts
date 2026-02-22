@@ -6,17 +6,7 @@
 import { initializeHindbrain, shutdown, generateResponse } from "../brain/hindbrain.js";
 import * as clack from "@clack/prompts";
 import { safeParseIdentity, type Identity } from "./identity-schema.js";
-
-function parseTraits(input: string): string[] {
-  return input
-    .toLowerCase()
-    .split(/[;,]/)
-    .map((t) => t.trim())
-    .filter(Boolean)
-    .flatMap((chunk) => chunk.split(/\s+and\s+/))
-    .map((t) => t.trim())
-    .filter(Boolean);
-}
+import { inferIdentityFromNarrative, parsePersonalityInput } from "./identity-co-creation.js";
 
 export async function runHindbrainDiscovery(): Promise<Identity> {
   console.log("🧠 Using internal Hindbrain for discovery...");
@@ -33,54 +23,82 @@ export async function runHindbrainDiscovery(): Promise<Identity> {
 
   const intro = hindbrainReady
     ? await generateResponse(
-        "Greet the user warmly and ask what they would like to name their new agent. Keep it conversational.",
+        "Greet the user warmly. Ask them to describe who this hatchling is becoming, including name, purpose, and personality if possible. Keep it conversational.",
       )
-    : "Hi, I am your hatchling's hindbrain. What would you like to name your new agent?";
+    : "Hi, I am your hatchling's hindbrain. Tell me who this hatchling is becoming. You can include a name, purpose, and personality.";
 
   clack.log.message(`🤖 ${intro}`);
 
-  const nameResponse = await clack.text({
+  const identityNarrative = await clack.text({
     message: "You",
     placeholder: "Type your response...",
   });
-  if (clack.isCancel(nameResponse)) {
+  if (clack.isCancel(identityNarrative)) {
     await shutdown().catch(() => {});
     throw new Error("Discovery cancelled by user");
   }
 
-  const purposeQuestion = hindbrainReady
-    ? await generateResponse(
-        `Ask about the purpose of an agent named \"${nameResponse as string}\". Sound collaborative.`,
-      )
-    : "What is this agent's purpose?";
+  const inferred = inferIdentityFromNarrative(String(identityNarrative));
+  let draftName = inferred.name;
+  let draftPurpose = inferred.purpose;
+  let draftPersonality = inferred.personality || [];
 
-  clack.log.message(`🤖 ${purposeQuestion}`);
+  if (!draftName) {
+    const nameQuestion = hindbrainReady
+      ? await generateResponse("Ask for a concise agent name. Keep it warm and collaborative.")
+      : "What should we call this hatchling?";
+    clack.log.message(`🤖 ${nameQuestion}`);
 
-  const purposeResponse = await clack.text({
-    message: "You",
-    placeholder: "Type your response...",
-  });
-  if (clack.isCancel(purposeResponse)) {
-    await shutdown().catch(() => {});
-    throw new Error("Discovery cancelled by user");
+    const nameResponse = await clack.text({
+      message: "You",
+      placeholder: "Type your response...",
+    });
+    if (clack.isCancel(nameResponse)) {
+      await shutdown().catch(() => {});
+      throw new Error("Discovery cancelled by user");
+    }
+    const inferredName = inferIdentityFromNarrative(String(nameResponse)).name;
+    draftName = inferredName || String(nameResponse).trim().toLowerCase().replace(/\s+/g, "-");
   }
 
-  const personalityQuestion = hindbrainReady
-    ? await generateResponse("Ask for personality traits as a short comma-separated list. Sound encouraging.")
-    : "What personality traits should it have? (comma-separated)";
+  if (!draftPurpose) {
+    const purposeQuestion = hindbrainReady
+      ? await generateResponse(
+          `Ask about the purpose of an agent named "${draftName || "this hatchling"}". Sound collaborative.`,
+        )
+      : "What is this hatchling's purpose?";
+    clack.log.message(`🤖 ${purposeQuestion}`);
 
-  clack.log.message(`🤖 ${personalityQuestion}`);
-
-  const personalityResponse = await clack.text({
-    message: "You",
-    placeholder: "Type your response...",
-  });
-  if (clack.isCancel(personalityResponse)) {
-    await shutdown().catch(() => {});
-    throw new Error("Discovery cancelled by user");
+    const purposeResponse = await clack.text({
+      message: "You",
+      placeholder: "Type your response...",
+    });
+    if (clack.isCancel(purposeResponse)) {
+      await shutdown().catch(() => {});
+      throw new Error("Discovery cancelled by user");
+    }
+    draftPurpose = inferIdentityFromNarrative(String(purposeResponse)).purpose
+      || String(purposeResponse).trim();
   }
 
-  const defaultName = (nameResponse as string).trim().toLowerCase().replace(/\s+/g, "-");
+  if (!draftPersonality.length) {
+    const personalityQuestion = hindbrainReady
+      ? await generateResponse("Ask for personality traits as a short comma-separated list. Sound encouraging.")
+      : "What personality traits should it have? (comma-separated)";
+    clack.log.message(`🤖 ${personalityQuestion}`);
+
+    const personalityResponse = await clack.text({
+      message: "You",
+      placeholder: "Type your response...",
+    });
+    if (clack.isCancel(personalityResponse)) {
+      await shutdown().catch(() => {});
+      throw new Error("Discovery cancelled by user");
+    }
+    draftPersonality = parsePersonalityInput(String(personalityResponse));
+  }
+
+  const defaultName = (draftName || "hatchling").trim().toLowerCase().replace(/\s+/g, "-");
   const suggestedNames = [defaultName, `${defaultName}-core`, `${defaultName}-agent`].filter(Boolean);
 
   clack.log.message("");
@@ -107,8 +125,8 @@ export async function runHindbrainDiscovery(): Promise<Identity> {
 
   let identityData = {
     name: (finalName as string).trim().toLowerCase(),
-    purpose: (purposeResponse as string).trim() || "To learn, grow, and evolve",
-    personality: parseTraits(personalityResponse as string),
+    purpose: (draftPurpose || "").trim() || "To learn, grow, and evolve",
+    personality: draftPersonality,
   };
   if (identityData.personality.length === 0) {
     identityData.personality = ["curious", "loyal"];
@@ -173,7 +191,7 @@ export async function runHindbrainDiscovery(): Promise<Identity> {
         await shutdown().catch(() => {});
         throw new Error("Discovery cancelled by user");
       }
-      const parsed = parseTraits(String(next));
+      const parsed = parsePersonalityInput(String(next));
       if (parsed.length > 0) {
         identityData.personality = parsed;
       }
