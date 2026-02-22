@@ -88,6 +88,7 @@ export async function generateDNAFiles(
       null,
       2,
     ),
+    "mcp_servers.json": JSON.stringify({ servers: [] }, null, 2),
   };
 
   for (const [file, content] of Object.entries(dna)) {

@@ -51,6 +51,7 @@ test("extension registers evolution tools and executes mutate_self/sync_germline
 
   assert.ok(commands.has("vitals"));
   assert.ok(commands.has("sleep"));
+  assert.ok(commands.has("maintenance"));
   assert.ok(commands.has("good"));
   assert.ok(commands.has("bad"));
   assert.ok(tools.has("mutate_self"));

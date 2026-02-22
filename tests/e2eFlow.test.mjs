@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 
-test("non-interactive e2e flow: init -> list -> start --smoke -> doctor", async () => {
+test("non-interactive e2e flow: init -> list -> start --smoke -> maintain -> mcp -> doctor", async () => {
   const testHome = path.join(process.cwd(), ".tmp-test-home-e2e");
   await fs.rm(testHome, { recursive: true, force: true });
   await fs.mkdir(testHome, { recursive: true });
@@ -47,6 +47,33 @@ test("non-interactive e2e flow: init -> list -> start --smoke -> doctor", async 
   });
   assert.equal(smoke.status, 0, `${smoke.stdout}\n${smoke.stderr}`);
   assert.match(`${smoke.stdout}\n${smoke.stderr}`, /Smoke check passed/i);
+
+  const maintain = spawnSync("node", ["dist/cli.js", "maintain"], {
+    cwd: process.cwd(),
+    env,
+    encoding: "utf-8",
+  });
+  assert.equal(maintain.status, 0, `${maintain.stdout}\n${maintain.stderr}`);
+  assert.match(`${maintain.stdout}\n${maintain.stderr}`, /Maintenance complete/i);
+
+  const mcpAdd = spawnSync(
+    "node",
+    ["dist/cli.js", "mcp", "add", "fsbridge", "npx", "@modelcontextprotocol/server-filesystem", "/tmp"],
+    {
+      cwd: process.cwd(),
+      env,
+      encoding: "utf-8",
+    },
+  );
+  assert.equal(mcpAdd.status, 0, `${mcpAdd.stdout}\n${mcpAdd.stderr}`);
+
+  const mcpList = spawnSync("node", ["dist/cli.js", "mcp", "list", "--json"], {
+    cwd: process.cwd(),
+    env,
+    encoding: "utf-8",
+  });
+  assert.equal(mcpList.status, 0, `${mcpList.stdout}\n${mcpList.stderr}`);
+  assert.match(mcpList.stdout, /fsbridge/i);
 
   const doctor = spawnSync("node", ["dist/cli.js", "doctor", "--json"], {
     cwd: process.cwd(),

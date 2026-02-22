@@ -95,6 +95,13 @@ export async function sleep() {
   console.log('🔄 Daily budgets reset.');
 
   // 4. Evolutionary Commit
+  const hasChanges = execSync('git status --porcelain', { cwd: root, encoding: 'utf-8' }).trim().length > 0;
+  if (!hasChanges) {
+    console.log('🧬 No new changes detected during sleep cycle. Skipping commit.');
+    console.log('💤 Sleep cycle complete. Hatchling is refreshed.');
+    return;
+  }
+
   const gitAdd = spawn('git', ['add', '.'], { cwd: root, stdio: 'ignore' });
   const gitAddCode = await new Promise<number>((resolve) => {
     gitAdd.on('close', (code) => resolve(code ?? 1));

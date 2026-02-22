@@ -11,7 +11,8 @@ Hatchling is an extension for the [pi-coding-agent](https://github.com/badlogic/
 - **Mutation System**: Creates and validates new skills in quarantine
 - **Immune System**: Blocks dangerous code patterns
 - **Reinforcement Learning**: Responds to /good and /bad feedback
-- **Ghost Pulse**: Proactive background daemon for autonomous tasks
+- **Autonomic Maintenance**: Heartbeat, low-energy auto-sleep, and memory/telemetry compaction
+- **MCP Registry**: Manage external MCP servers per instance for tool expansion
 
 ## 🚀 Installation
 
@@ -38,8 +39,8 @@ hatchling init --non-interactive --name seed --purpose "Assist with production e
 This will guide you through:
 1. Selecting an AI provider
 2. Choosing a model
-3. Naming your agent
-4. Interactive self-discovery via the local Hindbrain
+3. Conversationally co-creating identity (name, purpose, personality)
+4. Confirming and revising identity until it feels right
 
 ### Start Your Agent
 
@@ -52,6 +53,9 @@ hatchling start --smoke
 
 # Local dashboard
 hatchling web --port 8787
+
+# Run one autonomic maintenance tick
+hatchling maintain
 ```
 
 ### Check System Health
@@ -71,6 +75,7 @@ hatchling doctor --json
 - `/vitals` - Show system health and metrics
 - `/good [note]` - Positive reinforcement
 - `/bad [note]` - Negative reinforcement
+- `/maintenance` - Run one maintenance tick now
 
 ### Skill Evolution Commands
 
@@ -83,6 +88,23 @@ hatchling skill list
 
 # Promote staged skill into active limbs
 hatchling skill promote web-vision
+```
+
+### MCP Server Commands
+
+```bash
+# Add a server definition
+hatchling mcp add filesystem npx @modelcontextprotocol/server-filesystem /tmp
+
+# List configured servers
+hatchling mcp list
+hatchling mcp list --json
+
+# Export enabled servers as Pi-compatible JSON
+hatchling mcp export
+
+# Remove a server
+hatchling mcp remove filesystem
 ```
 
 ### Directory Structure
@@ -140,11 +162,14 @@ Hatchling models itself as a living organism:
 # Run tests
 npm test
 
+# Run lint + tests
+npm run verify
+
 # Watch mode
 npm run build -- --watch
 
 # Check types
-npm run build
+npm run lint
 ```
 
 ### Hindbrain Backend Selection

@@ -493,6 +493,124 @@ const main = defineCommand({
       },
     }),
 
+    mcp: defineCommand({
+      meta: {
+        description: "Manage MCP servers for the active instance",
+      },
+      subCommands: {
+        add: defineCommand({
+          meta: { description: "Add an MCP server definition" },
+          args: {
+            name: {
+              type: "positional",
+              required: true,
+              description: "Server name",
+            },
+            command: {
+              type: "positional",
+              required: true,
+              description: "Executable command",
+            },
+            args: {
+              type: "positional",
+              required: false,
+              description: "Optional command args",
+            },
+          },
+          async run({ args }) {
+            const activeInstance = await getActiveInstance();
+            if (!activeInstance) {
+              clack.log.error("No active instance found. Run 'hatchling init' first.");
+              process.exit(1);
+            }
+            const rootDir = getInstancePath(activeInstance);
+            const { addMCPServer } = await import("./system/mcp.js");
+            try {
+              const allPositionals = Array.isArray(args._) ? args._.map((v) => String(v)) : [];
+              const extra = allPositionals.slice(2);
+              const added = await addMCPServer(rootDir, String(args.name), String(args.command), extra);
+              clack.log.success(`Added MCP server '${added.name}' -> ${added.command} ${added.args.join(" ")}`.trim());
+            } catch (error) {
+              clack.log.error((error as Error).message);
+              process.exit(1);
+            }
+          },
+        }),
+        list: defineCommand({
+          meta: { description: "List MCP servers for active instance" },
+          args: {
+            json: {
+              type: "boolean",
+              description: "Print JSON output",
+              default: false,
+            },
+          },
+          async run({ args }) {
+            const activeInstance = await getActiveInstance();
+            if (!activeInstance) {
+              clack.log.error("No active instance found. Run 'hatchling init' first.");
+              process.exit(1);
+            }
+            const rootDir = getInstancePath(activeInstance);
+            const { listMCPServers } = await import("./system/mcp.js");
+            const servers = await listMCPServers(rootDir);
+            if (args.json) {
+              console.log(JSON.stringify(servers, null, 2));
+              return;
+            }
+            clack.intro("🔌 MCP Servers");
+            if (!servers.length) {
+              clack.log.message("(none)");
+            } else {
+              for (const server of servers) {
+                clack.log.message(`- ${server.name}: ${server.command} ${server.args.join(" ")}`.trim());
+              }
+            }
+            clack.outro("");
+          },
+        }),
+        remove: defineCommand({
+          meta: { description: "Remove an MCP server by name" },
+          args: {
+            name: {
+              type: "positional",
+              required: true,
+              description: "Server name",
+            },
+          },
+          async run({ args }) {
+            const activeInstance = await getActiveInstance();
+            if (!activeInstance) {
+              clack.log.error("No active instance found. Run 'hatchling init' first.");
+              process.exit(1);
+            }
+            const rootDir = getInstancePath(activeInstance);
+            const { removeMCPServer } = await import("./system/mcp.js");
+            const removed = await removeMCPServer(rootDir, String(args.name));
+            if (!removed) {
+              clack.log.error(`MCP server '${String(args.name)}' not found.`);
+              process.exit(1);
+            }
+            clack.log.success(`Removed MCP server '${String(args.name)}'.`);
+          },
+        }),
+        export: defineCommand({
+          meta: { description: "Export MCP servers as Pi-compatible JSON object" },
+          async run() {
+            const activeInstance = await getActiveInstance();
+            if (!activeInstance) {
+              clack.log.error("No active instance found. Run 'hatchling init' first.");
+              process.exit(1);
+            }
+            const rootDir = getInstancePath(activeInstance);
+            const { exportMCPServersForPi } = await import("./system/mcp.js");
+            const exported = await exportMCPServersForPi(rootDir);
+            console.log(JSON.stringify(exported, null, 2));
+          },
+        }),
+      },
+    }),
+
     web: defineCommand({
       meta: {
         description: "Run local web dashboard for the active instance",
@@ -536,6 +654,56 @@ const main = defineCommand({
 
         process.on("SIGINT", () => {
           server.close(() => process.exit(0));
+        });
+      },
+    }),
+
+    maintain: defineCommand({
+      meta: {
+        description: "Run autonomous maintenance (tick once or watch loop)",
+      },
+      args: {
+        watch: {
+          type: "boolean",
+          description: "Run maintenance loop continuously",
+          default: false,
+        },
+        interval: {
+          type: "string",
+          description: "Loop interval in milliseconds when --watch is set",
+          default: "60000",
+        },
+      },
+      async run({ args }) {
+        const activeInstance = await getActiveInstance();
+        if (!activeInstance) {
+          clack.log.error("No active instance found. Run 'hatchling init' first.");
+          process.exit(1);
+        }
+
+        const rootDir = getInstancePath(activeInstance);
+        const { runMaintenanceTick, startMaintenanceLoop, stopMaintenanceLoop } = await import("./system/maintenance.js");
+        if (!args.watch) {
+          const report = await runMaintenanceTick(rootDir);
+          clack.log.success(
+            `Maintenance complete: lowEnergy=${report.lowEnergy}, autoSleep=${report.autoSleepTriggered}, telemetryPruned=${report.telemetryPruned}, stagingTrimmed=${report.stagingTrimmed}`,
+          );
+          return;
+        }
+
+        const interval = Number(args.interval || "60000");
+        if (!Number.isFinite(interval) || interval < 1000) {
+          clack.log.error(`Invalid interval: ${String(args.interval)} (must be >= 1000)`);
+          process.exit(1);
+        }
+
+        await startMaintenanceLoop(rootDir, interval);
+        clack.intro("🫀 Hatchling Maintenance Loop");
+        clack.log.info(`Running every ${interval}ms for ${activeInstance}`);
+        clack.log.info("Press Ctrl+C to stop.");
+        process.on("SIGINT", () => {
+          stopMaintenanceLoop(rootDir);
+          process.exit(0);
         });
       },
     }),

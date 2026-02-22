@@ -10,6 +10,10 @@ export default function (pi: ExtensionAPI) {
   pi.on("session_start", async (_event, ctx) => {
     const { PathGuard } = await import("./system/pathGuard.js");
     PathGuard.setRoot(rootDir);
+    if (process.env.HATCHLING_AUTONOMIC_MAINTENANCE !== "0") {
+      const { startMaintenanceLoop } = await import("./system/maintenance.js");
+      await startMaintenanceLoop(rootDir);
+    }
 
     try {
       const configPath = path.join(rootDir, "brain", "config.json");
@@ -68,6 +72,18 @@ export default function (pi: ExtensionAPI) {
       const { sleep } = await import("./system/sleep.js");
       await sleep();
       ctx.ui.notify("Sleep cycle complete.", "info");
+    },
+  });
+
+  pi.registerCommand("maintenance", {
+    description: "Run one autonomous maintenance tick now",
+    handler: async (_args, ctx) => {
+      const { runMaintenanceTick } = await import("./system/maintenance.js");
+      const report = await runMaintenanceTick(rootDir);
+      ctx.ui.notify(
+        `Maintenance tick: lowEnergy=${report.lowEnergy}, autoSleep=${report.autoSleepTriggered}, pruned=${report.telemetryPruned}`,
+        "info",
+      );
     },
   });
 

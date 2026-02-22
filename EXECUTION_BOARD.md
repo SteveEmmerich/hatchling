@@ -71,3 +71,19 @@ Updated: 2026-02-22
   - Added release checklist and upgrade guide with env/backends/health verification steps.
 - Acceptance:
   - Operators have explicit build/test/health/upgrade runbooks.
+
+4. Autonomous Maintenance Orchestration
+- Status: Complete
+- Scope:
+  - Added maintenance tick/loop with heartbeat, low-energy auto-sleep cooldown, telemetry pruning, and staging-memory compaction.
+  - Wired loop to session startup and added manual `hatchling maintain` entrypoint.
+- Acceptance:
+  - Unit + e2e tests validate auto-sleep behavior, compaction behavior, and CLI maintenance flow.
+
+5. MCP Capability Wiring
+- Status: Complete (MVP)
+- Scope:
+  - Added per-instance MCP server registry with `add/list/remove/export`.
+  - Persisted MCP state into `brain/mcp_servers.json`.
+- Acceptance:
+  - CLI and e2e tests validate registry lifecycle and Pi-compatible export output.

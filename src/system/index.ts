@@ -16,3 +16,5 @@ export * from './feedback.js';
 export * from './debug.js';
 export * from './skills.js';
 export * from './web.js';
+export * from './maintenance.js';
+export * from './mcp.js';
