@@ -183,6 +183,7 @@ export default function (pi: ExtensionAPI) {
       source: Type.String({ description: "Local path or git repository URL" }),
       name: Type.Optional(Type.String({ description: "Optional installed skill name override" })),
       subdir: Type.Optional(Type.String({ description: "Optional skill subdirectory in source" })),
+      approveUntrusted: Type.Optional(Type.Boolean({ description: "Approve install from untrusted repo host" })),
     }),
     async execute(_toolCallId, params) {
       const { installSkillFromSource } = await import("./system/skills.js");
@@ -192,6 +193,7 @@ export default function (pi: ExtensionAPI) {
           params.source,
           params.name,
           params.subdir,
+          { approveUntrusted: Boolean(params.approveUntrusted) },
         );
         return {
           content: [{ type: "text", text: `✅ Installed skill from ${params.source}` }],
@@ -203,6 +205,49 @@ export default function (pi: ExtensionAPI) {
           details: { success: false, installedPath: "", error: String(error.message || error) },
         };
       }
+    },
+  });
+
+  pi.registerTool({
+    name: "evolve_goal",
+    label: "Evolve Goal",
+    description: "Plan or execute evolution actions from a natural-language goal.",
+    parameters: Type.Object({
+      goal: Type.String({ description: "Natural-language goal" }),
+      execute: Type.Optional(Type.Boolean({ description: "Execute planned actions if true" })),
+      approveUntrusted: Type.Optional(Type.Boolean({ description: "Approve untrusted repo installs" })),
+      skillSubdir: Type.Optional(Type.String({ description: "Optional skill subdirectory for install actions" })),
+    }),
+    async execute(_toolCallId, params) {
+      const { planEvolution, executeEvolutionPlan } = await import("./system/evolve.js");
+      const plan = planEvolution(params.goal);
+      if (!params.execute) {
+        return {
+          content: [{ type: "text", text: `🧬 Planned ${plan.actions.length} action(s).` }],
+          details: { success: true, plan, results: [] as any[], error: "" },
+        };
+      }
+      const results = await executeEvolutionPlan(rootDir, plan, {
+        approveUntrusted: Boolean(params.approveUntrusted),
+        skillSubdir: params.skillSubdir,
+      });
+      const failed = results.filter((r) => !r.success);
+      return {
+        content: [
+          {
+            type: "text",
+            text: failed.length
+              ? `❌ Evolution execution completed with ${failed.length} failure(s).`
+              : "✅ Evolution execution completed successfully.",
+          },
+        ],
+        details: {
+          success: failed.length === 0,
+          plan,
+          results,
+          error: failed.map((f) => f.message).join("; "),
+        },
+      };
     },
   });
 }

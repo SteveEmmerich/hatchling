@@ -13,6 +13,17 @@ export interface StagedSkill {
 }
 
 const execFileAsync = promisify(execFile);
+const SKILL_POLICY_FILE = "brain/skill_policy.json";
+
+export interface SkillInstallPolicy {
+  allowedHosts: string[];
+  allowLocalPaths: boolean;
+  requireApprovalForUntrusted: boolean;
+}
+
+export interface SkillInstallOptions {
+  approveUntrusted?: boolean;
+}
 
 function validateSkillName(name: string): string {
   const normalized = name.trim().toLowerCase();
@@ -25,6 +36,48 @@ function validateSkillName(name: string): string {
 function normalizeSkillNameFromSource(source: string): string {
   const base = path.basename(source).trim().toLowerCase().replace(/\s+/g, "-");
   return validateSkillName(base || "imported-skill");
+}
+
+function defaultPolicy(): SkillInstallPolicy {
+  return {
+    allowedHosts: ["github.com", "gitlab.com", "bitbucket.org"],
+    allowLocalPaths: true,
+    requireApprovalForUntrusted: true,
+  };
+}
+
+async function readPolicy(rootDir: string): Promise<SkillInstallPolicy> {
+  const policyPath = path.join(rootDir, SKILL_POLICY_FILE);
+  if (!existsSync(policyPath)) {
+    return defaultPolicy();
+  }
+  try {
+    const parsed = JSON.parse(await fs.readFile(policyPath, "utf-8")) as Partial<SkillInstallPolicy>;
+    return {
+      allowedHosts: Array.isArray(parsed.allowedHosts)
+        ? parsed.allowedHosts.map((host) => String(host).toLowerCase())
+        : defaultPolicy().allowedHosts,
+      allowLocalPaths: parsed.allowLocalPaths !== false,
+      requireApprovalForUntrusted: parsed.requireApprovalForUntrusted !== false,
+    };
+  } catch {
+    return defaultPolicy();
+  }
+}
+
+function resolveSourceHost(source: string): string | null {
+  if (/^git@/i.test(source)) {
+    const match = source.match(/^git@([^:]+):/i);
+    return match ? match[1].toLowerCase() : null;
+  }
+  if (/^https?:\/\//i.test(source) || /^ssh:\/\//i.test(source)) {
+    try {
+      return new URL(source).hostname.toLowerCase();
+    } catch {
+      return null;
+    }
+  }
+  return null;
 }
 
 export async function stageSkill(
@@ -130,15 +183,21 @@ export async function installSkillFromSource(
   source: string,
   targetName?: string,
   subdir?: string,
+  options: SkillInstallOptions = {},
 ): Promise<string> {
   const trimmedSource = source.trim();
   const relativeSubdir = (subdir || "").trim();
+  const policy = await readPolicy(rootDir);
+  const approveUntrusted = Boolean(options.approveUntrusted);
 
   if (!trimmedSource) {
     throw new Error("Skill source is required.");
   }
 
   if (existsSync(trimmedSource)) {
+    if (!policy.allowLocalPaths) {
+      throw new Error("Local skill installs are disabled by policy.");
+    }
     const sourcePath = relativeSubdir
       ? path.join(path.resolve(trimmedSource), relativeSubdir)
       : trimmedSource;
@@ -147,6 +206,19 @@ export async function installSkillFromSource(
 
   if (!isRepoSource(trimmedSource)) {
     throw new Error(`Unsupported skill source: ${trimmedSource}`);
+  }
+  if (trimmedSource.startsWith("file://")) {
+    if (!policy.allowLocalPaths) {
+      throw new Error("file:// skill installs are disabled by policy.");
+    }
+  } else {
+    const host = resolveSourceHost(trimmedSource);
+    const trusted = host ? policy.allowedHosts.includes(host) : false;
+    if (!trusted && policy.requireApprovalForUntrusted && !approveUntrusted) {
+      throw new Error(
+        `Untrusted repository source '${trimmedSource}'. Re-run with approval to continue.`,
+      );
+    }
   }
 
   let clonedPath = "";

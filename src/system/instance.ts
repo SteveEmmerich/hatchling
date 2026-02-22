@@ -9,9 +9,17 @@ import { join } from "path";
 import { homedir } from "os";
 import { execSync } from "child_process";
 
-const HATCHLING_HOME = process.env.HATCHLING_HOME || homedir();
-const HATCHLINGS_DIR = join(HATCHLING_HOME, ".hatchlings");
-const ACTIVE_INSTANCE_FILE = join(HATCHLING_HOME, ".hatchling_active");
+function getHatchlingHome(): string {
+  return process.env.HATCHLING_HOME || homedir();
+}
+
+function getHatchlingsDir(): string {
+  return join(getHatchlingHome(), ".hatchlings");
+}
+
+function getActiveInstanceFile(): string {
+  return join(getHatchlingHome(), ".hatchling_active");
+}
 
 export interface InstanceConfig {
   name: string;
@@ -33,7 +41,7 @@ export function getGermlinePath(): string {
  * Get the path to an instance's phenotype (cloned copy)
  */
 export function getInstancePath(name: string): string {
-  return join(HATCHLINGS_DIR, name);
+  return join(getHatchlingsDir(), name);
 }
 
 /**
@@ -60,7 +68,7 @@ export async function createInstance(options: {
   }
 
   // Ensure ~/.hatchlings/ exists
-  await mkdir(HATCHLINGS_DIR, { recursive: true });
+  await mkdir(getHatchlingsDir(), { recursive: true });
 
   const germlinePath = getGermlinePath();
 
@@ -152,10 +160,11 @@ export async function createInstance(options: {
  */
 export async function getActiveInstance(): Promise<string | null> {
   try {
-    if (!existsSync(ACTIVE_INSTANCE_FILE)) {
+    const activeInstanceFile = getActiveInstanceFile();
+    if (!existsSync(activeInstanceFile)) {
       return null;
     }
-    const name = await readFile(ACTIVE_INSTANCE_FILE, "utf-8");
+    const name = await readFile(activeInstanceFile, "utf-8");
     return name.trim();
   } catch {
     return null;
@@ -172,7 +181,7 @@ export async function setActiveInstance(name: string): Promise<void> {
     throw new Error(`Instance '${name}' does not exist at ${instancePath}`);
   }
 
-  await writeFile(ACTIVE_INSTANCE_FILE, name);
+  await writeFile(getActiveInstanceFile(), name);
 
   // Update lastActive timestamp
   const configPath = join(instancePath, "brain", "config.json");
@@ -187,18 +196,19 @@ export async function setActiveInstance(name: string): Promise<void> {
  * List all hatchling instances
  */
 export async function listInstances(): Promise<InstanceConfig[]> {
-  if (!existsSync(HATCHLINGS_DIR)) {
+  const hatchlingsDir = getHatchlingsDir();
+  if (!existsSync(hatchlingsDir)) {
     return [];
   }
 
   const { readdir } = await import("fs/promises");
-  const entries = await readdir(HATCHLINGS_DIR, { withFileTypes: true });
+  const entries = await readdir(hatchlingsDir, { withFileTypes: true });
   
   const instances: InstanceConfig[] = [];
   
   for (const entry of entries) {
     if (entry.isDirectory()) {
-      const configPath = join(HATCHLINGS_DIR, entry.name, "brain", "config.json");
+      const configPath = join(hatchlingsDir, entry.name, "brain", "config.json");
       if (existsSync(configPath)) {
         try {
           const config = JSON.parse(await readFile(configPath, "utf-8"));
@@ -231,11 +241,11 @@ export async function deleteInstance(name: string): Promise<void> {
   // Clear active instance if it was this one
   const activeInstance = await getActiveInstance();
   if (activeInstance === name) {
-    const { unlink } = await import("fs/promises");
-    try {
-      await unlink(ACTIVE_INSTANCE_FILE);
-    } catch {
-      // Ignore if file doesn't exist
-    }
+      const { unlink } = await import("fs/promises");
+      try {
+        await unlink(getActiveInstanceFile());
+      } catch {
+        // Ignore if file doesn't exist
+      }
   }
 }

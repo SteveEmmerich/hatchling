@@ -88,6 +88,15 @@ export async function generateDNAFiles(
       null,
       2,
     ),
+    "skill_policy.json": JSON.stringify(
+      {
+        allowedHosts: ["github.com", "gitlab.com", "bitbucket.org"],
+        allowLocalPaths: true,
+        requireApprovalForUntrusted: true,
+      },
+      null,
+      2,
+    ),
     "mcp_servers.json": JSON.stringify({ servers: [] }, null, 2),
   };
 

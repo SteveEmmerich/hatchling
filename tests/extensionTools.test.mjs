@@ -59,6 +59,7 @@ test("extension registers evolution tools and executes mutate_self/sync_germline
   assert.ok(tools.has("sync_germline"));
   assert.ok(tools.has("generate_backup"));
   assert.ok(tools.has("install_skill"));
+  assert.ok(tools.has("evolve_goal"));
 
   const mutateSelf = tools.get("mutate_self");
   const mutateResult = await mutateSelf.execute("tool-call-1", {
@@ -143,6 +144,20 @@ export function renderWebInterface(config: WebInterfaceConfig): string {
   assert.equal(installResult.details.success, true);
   assert.match(installResult.content[0].text, /installed skill/i);
   await fs.access(path.join(instancePath, "limbs", "repo-skill", "SKILL.md"));
+
+  const blockedInstall = await installSkill.execute("tool-call-4b", {
+    source: "https://untrusted.example.com/repo.git",
+  });
+  assert.equal(blockedInstall.details.success, false);
+  assert.match(blockedInstall.content[0].text, /untrusted repository source/i);
+
+  const evolveGoal = tools.get("evolve_goal");
+  const evolvePlan = await evolveGoal.execute("tool-call-4c", {
+    goal: "Create a web interface and run maintenance",
+  });
+  assert.equal(evolvePlan.details.success, true);
+  assert.equal(evolvePlan.details.plan.actions.length >= 2, true);
+
   await fs.rm(repoDir, { recursive: true, force: true });
 
   await instance.deleteInstance("ext");

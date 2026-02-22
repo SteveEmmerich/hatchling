@@ -94,6 +94,19 @@ hatchling skill install /path/to/skill --name web-vision
 
 # Install a skill from a git repo URL
 hatchling skill install https://github.com/example/skill-pack.git --subdir skills/web --name web-vision
+
+# Approve install from an untrusted repo host
+hatchling skill install https://example.internal/skills.git --approve-untrusted
+```
+
+### Evolution Planner
+
+```bash
+# Plan actions from a natural-language goal (dry-run)
+hatchling evolve "Install skill from https://github.com/example/skill-pack.git and run maintenance"
+
+# Execute planned actions
+hatchling evolve "Install skill from file:///tmp/skill-repo" --execute --skillSubdir skills/core
 ```
 
 ### MCP Server Commands

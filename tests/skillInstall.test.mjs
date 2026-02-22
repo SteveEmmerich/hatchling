@@ -129,3 +129,37 @@ test("skill install command installs from repository URL", async () => {
   await fs.rm(testHome, { recursive: true, force: true });
   await fs.rm(repoDir, { recursive: true, force: true });
 });
+
+test("skill install command blocks untrusted repository without approval", async () => {
+  const testHome = path.join(process.cwd(), ".tmp-test-home-skill-install-untrusted");
+  await fs.rm(testHome, { recursive: true, force: true });
+  await fs.mkdir(testHome, { recursive: true });
+
+  const env = { ...process.env, HATCHLING_HOME: testHome, HATCHLING_HINDBRAIN_BACKEND: "cpu" };
+  const init = spawnSync(
+    "node",
+    [
+      "dist/cli.js",
+      "init",
+      "--non-interactive",
+      "--name",
+      "install-untrusted-seed",
+      "--purpose",
+      "Validate skill install trust policy",
+      "--personality",
+      "curious,direct",
+    ],
+    { cwd: process.cwd(), env, encoding: "utf-8" },
+  );
+  assert.equal(init.status, 0, `${init.stdout}\n${init.stderr}`);
+
+  const install = spawnSync(
+    "node",
+    ["dist/cli.js", "skill", "install", "https://untrusted.example.com/repo.git"],
+    { cwd: process.cwd(), env, encoding: "utf-8" },
+  );
+  assert.notEqual(install.status, 0, `${install.stdout}\n${install.stderr}`);
+  assert.match(`${install.stdout}\n${install.stderr}`, /Untrusted repository source/i);
+
+  await fs.rm(testHome, { recursive: true, force: true });
+});

@@ -95,3 +95,12 @@ Updated: 2026-02-22
   - Exposed `install_skill` tool so users can provide repositories conversationally during agent sessions.
 - Acceptance:
   - Unit/integration/e2e tests validate repo-backed skill installation through CLI and extension tooling.
+
+7. Goal-to-Action Evolution Planner
+- Status: Complete (MVP)
+- Scope:
+  - Added `hatchling evolve` with dry-run and execute modes for natural-language goals.
+  - Added `evolve_goal` extension tool for conversational planning/execution in active sessions.
+  - Included trust-gated repo install integration and maintenance/web-limb action inference.
+- Acceptance:
+  - Planner and execution flows are test-covered, and full verify suite passes with deterministic outputs.

@@ -506,6 +506,11 @@ const main = defineCommand({
               type: "string",
               description: "Optional skill subdirectory within source/repo",
             },
+            approveUntrusted: {
+              type: "boolean",
+              description: "Approve install from untrusted repo host",
+              default: false,
+            },
           },
           async run({ args }) {
             const activeInstance = await getActiveInstance();
@@ -521,6 +526,7 @@ const main = defineCommand({
                 String(args.source),
                 args.name ? String(args.name) : undefined,
                 args.subdir ? String(args.subdir) : undefined,
+                { approveUntrusted: Boolean(args.approveUntrusted) },
               );
               clack.log.success(`Installed skill -> ${installed}`);
             } catch (error) {
@@ -647,6 +653,95 @@ const main = defineCommand({
             console.log(JSON.stringify(exported, null, 2));
           },
         }),
+      },
+    }),
+
+    evolve: defineCommand({
+      meta: {
+        description: "Plan or execute evolution steps from a natural-language goal",
+      },
+      args: {
+        goal: {
+          type: "positional",
+          required: true,
+          description: "Natural-language evolution goal",
+        },
+        execute: {
+          type: "boolean",
+          default: false,
+          description: "Execute planned actions (default is dry-run plan)",
+        },
+        json: {
+          type: "boolean",
+          default: false,
+          description: "Print machine-readable output",
+        },
+        approveUntrusted: {
+          type: "boolean",
+          default: false,
+          description: "Approve untrusted repository sources for install actions",
+        },
+        skillSubdir: {
+          type: "string",
+          description: "Optional skill subdirectory to use for install actions",
+        },
+      },
+      async run({ args }) {
+        const activeInstance = await getActiveInstance();
+        if (!activeInstance) {
+          clack.log.error("No active instance found. Run 'hatchling init' first.");
+          process.exit(1);
+        }
+        const rootDir = getInstancePath(activeInstance);
+        const { planEvolution, executeEvolutionPlan } = await import("./system/evolve.js");
+
+        const plan = planEvolution(String(args.goal));
+        if (args.json) {
+          if (!args.execute) {
+            console.log(JSON.stringify({ mode: "plan", plan }, null, 2));
+            return;
+          }
+          const results = await executeEvolutionPlan(rootDir, plan, {
+            approveUntrusted: Boolean(args.approveUntrusted),
+            skillSubdir: args.skillSubdir ? String(args.skillSubdir) : undefined,
+          });
+          console.log(JSON.stringify({ mode: "execute", plan, results }, null, 2));
+          if (results.some((result) => !result.success)) {
+            process.exit(1);
+          }
+          return;
+        }
+
+        clack.intro("🧬 Evolution Planner");
+        if (!plan.actions.length) {
+          clack.log.warn("No actionable evolution steps were inferred from this goal.");
+          clack.outro("");
+          return;
+        }
+        plan.actions.forEach((action, index) => {
+          clack.log.message(`${index + 1}. ${action.type} — ${action.reason}`);
+        });
+        if (!args.execute) {
+          clack.log.info("Dry-run complete. Re-run with --execute to apply.");
+          clack.outro("");
+          return;
+        }
+
+        const results = await executeEvolutionPlan(rootDir, plan, {
+          approveUntrusted: Boolean(args.approveUntrusted),
+          skillSubdir: args.skillSubdir ? String(args.skillSubdir) : undefined,
+        });
+        for (const result of results) {
+          if (result.success) {
+            clack.log.success(`${result.type}: ${result.message}`);
+          } else {
+            clack.log.error(`${result.type}: ${result.message}`);
+          }
+        }
+        clack.outro("");
+        if (results.some((result) => !result.success)) {
+          process.exit(1);
+        }
       },
     }),
 
