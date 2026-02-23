@@ -44,14 +44,20 @@ test("share command creates a portable kit with bundle and quickstart", async ()
   await fs.access(output.bundlePath);
   await fs.access(output.manifestPath);
   await fs.access(output.quickstartPath);
+  await fs.access(output.installerPath);
 
   const manifest = JSON.parse(await fs.readFile(output.manifestPath, "utf-8"));
   assert.equal(manifest.instance, "share-seed");
   assert.match(String(manifest.bundle || ""), /\.bundle$/i);
+  assert.match(String(manifest.installer || ""), /INSTALL\.sh/i);
 
   const quickstart = await fs.readFile(output.quickstartPath, "utf-8");
   assert.match(quickstart, /Hatchling Share Kit/i);
-  assert.match(quickstart, /git clone/i);
+  assert.match(quickstart, /bash INSTALL\.sh/i);
+
+  const installer = await fs.readFile(output.installerPath, "utf-8");
+  assert.match(installer, /npm install/i);
+  assert.match(installer, /npm link/i);
 
   await fs.rm(testHome, { recursive: true, force: true });
 });

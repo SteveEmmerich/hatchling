@@ -88,6 +88,7 @@ Share kit output is written under `memory/share-kits/share_<timestamp>/` and inc
 - `<instance>.bundle` (git bundle snapshot)
 - `manifest.json`
 - `QUICKSTART.md`
+- `INSTALL.sh` (one-command installer for recipients)
 
 Doctor also validates channel consistency:
 - enabled channel capability must have a matching gateway limb
