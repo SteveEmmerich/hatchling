@@ -252,6 +252,9 @@ hatchling channel run telegram --json
 
 # Run continuous live chat loop
 hatchling channel run whatsapp --watch --interval 15000
+
+# Run production webhook ingress for WhatsApp (Meta verification + inbound capture)
+hatchling channel webhook whatsapp --host 0.0.0.0 --port 3001 --path /webhooks/whatsapp
 ```
 
 Bootstrap now also installs a reusable shared skill at `limbs/channel-mcp-bridge` with recommended MCP server references for Telegram and WhatsApp.

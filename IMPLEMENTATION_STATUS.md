@@ -19,6 +19,7 @@ Last updated: 2026-02-22
 - Cross-session autonomy strategy: persistent prioritized goal backlog + run reflections in `brain/autonomy_strategy.json` and `brain/autonomy_reflections.md`.
 - Channel transport: `channel test-message` supports simulated or live provider API mode (`--live`).
 - Channel runtime loop: `channel run <telegram|whatsapp>` provides a dedicated live chat loop separate from maintenance.
+- WhatsApp webhook ingress: `channel webhook whatsapp` provides Meta verification + inbound payload capture into runtime queue.
 - Daemon mode: `start --daemon`, `start --daemonStatus`, and `start --stopDaemon` manage background runtime per instance.
 - Share kit: `hatchling share` creates portable bundle + manifest + quickstart artifacts.
 - Creature TUI flair: vitals include deterministic per-instance creature avatar, growth stage, and mood rendering.
@@ -59,8 +60,9 @@ Last updated: 2026-02-22
 
 2. Real transport adapters
 - Telegram/WhatsApp bootstrap, validation, and dedicated runtime loops are implemented.
-- Telegram live polling and ingestion are implemented; WhatsApp ingestion currently uses webhook-file queue input.
-- Still needed: production webhook ingress service and richer conversation routing/response policies.
+- Telegram live polling and ingestion are implemented.
+- WhatsApp production webhook ingress now captures and verifies inbound events and feeds the runtime queue.
+- Still needed: richer conversation routing/response policies.
 
 3. Autonomous long-horizon planning
 - Bounded autonomy loop is implemented with approval guards and run logs.

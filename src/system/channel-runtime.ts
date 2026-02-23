@@ -1,6 +1,8 @@
 import fs from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
+import http from "node:http";
+import crypto from "node:crypto";
 import type { SupportedChannel } from "./channels.js";
 import { validateChannelCapability } from "./channels.js";
 
@@ -30,12 +32,39 @@ export interface ChannelRuntimeOptions {
   now?: () => Date;
 }
 
+export interface WhatsAppWebhookIngressOptions {
+  host?: string;
+  port?: number;
+  path?: string;
+  verifyTokenEnvVar?: string;
+  appSecretEnvVar?: string;
+  maxBodyBytes?: number;
+}
+
+export interface WhatsAppWebhookIngressHandle {
+  host: string;
+  port: number;
+  path: string;
+  close: () => Promise<void>;
+}
+
+export interface WhatsAppWebhookChallengeResult {
+  ok: boolean;
+  statusCode: number;
+  challenge?: string;
+  error?: string;
+}
+
 function runtimeStatePath(rootDir: string, channel: SupportedChannel): string {
   return path.join(rootDir, "memory", "channels", channel, "runtime_state.json");
 }
 
 function inboxPath(rootDir: string, channel: SupportedChannel): string {
   return path.join(rootDir, "memory", "channels", channel, "inbox.jsonl");
+}
+
+function whatsappInboundWebhookPath(rootDir: string): string {
+  return path.join(rootDir, "memory", "channels", "whatsapp", "inbound_webhooks.jsonl");
 }
 
 async function readState(rootDir: string, channel: SupportedChannel): Promise<ChannelRuntimeState> {
@@ -58,6 +87,12 @@ async function appendInbox(rootDir: string, channel: SupportedChannel, entry: Re
   const target = inboxPath(rootDir, channel);
   await fs.mkdir(path.dirname(target), { recursive: true });
   await fs.appendFile(target, `${JSON.stringify(entry)}\n`, "utf-8");
+}
+
+async function appendWhatsAppInboundWebhook(rootDir: string, body: string): Promise<void> {
+  const target = whatsappInboundWebhookPath(rootDir);
+  await fs.mkdir(path.dirname(target), { recursive: true });
+  await fs.appendFile(target, `${body}\n`, "utf-8");
 }
 
 function loopKey(rootDir: string, channel: SupportedChannel): string {
@@ -183,7 +218,7 @@ async function runWhatsAppTick(
   state: ChannelRuntimeState,
   options: ChannelRuntimeOptions,
 ): Promise<number> {
-  const webhookPath = path.join(rootDir, "memory", "channels", "whatsapp", "inbound_webhooks.jsonl");
+  const webhookPath = whatsappInboundWebhookPath(rootDir);
   if (!existsSync(webhookPath)) {
     state.whatsappCursor = state.whatsappCursor || 0;
     return 0;
@@ -214,6 +249,174 @@ async function runWhatsAppTick(
   }
   state.whatsappCursor = lines.length;
   return processed;
+}
+
+function normalizeWebhookPath(input: string | undefined): string {
+  const value = (input || "/webhooks/whatsapp").trim();
+  if (!value) return "/webhooks/whatsapp";
+  return value.startsWith("/") ? value : `/${value}`;
+}
+
+function verifyWhatsAppSignature(rawBody: string, signatureHeader: string | undefined, appSecret: string): boolean {
+  const expectedDigest = crypto
+    .createHmac("sha256", appSecret)
+    .update(rawBody, "utf-8")
+    .digest("hex");
+  const expected = `sha256=${expectedDigest}`;
+  if (!signatureHeader) return false;
+  const actual = signatureHeader.trim();
+  if (actual.length !== expected.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(actual), Buffer.from(expected));
+}
+
+export function validateWhatsAppWebhookChallenge(
+  query: URLSearchParams,
+  expectedVerifyToken: string | undefined,
+): WhatsAppWebhookChallengeResult {
+  const mode = query.get("hub.mode");
+  const verifyToken = query.get("hub.verify_token");
+  const challenge = query.get("hub.challenge") || "";
+  if (!expectedVerifyToken) {
+    return {
+      ok: false,
+      statusCode: 500,
+      error: "Missing verify token configuration",
+    };
+  }
+  if (mode === "subscribe" && verifyToken === expectedVerifyToken) {
+    return {
+      ok: true,
+      statusCode: 200,
+      challenge,
+    };
+  }
+  return {
+    ok: false,
+    statusCode: 403,
+    error: "Forbidden",
+  };
+}
+
+export async function ingestWhatsAppWebhookPayload(
+  rootDir: string,
+  rawBody: string,
+  options: { appSecret?: string; signatureHeader?: string } = {},
+): Promise<void> {
+  const normalized = rawBody.trim();
+  if (!normalized) throw new Error("Empty payload");
+  if (options.appSecret) {
+    const valid = verifyWhatsAppSignature(normalized, options.signatureHeader, options.appSecret);
+    if (!valid) throw new Error("Invalid signature");
+  }
+  JSON.parse(normalized);
+  await appendWhatsAppInboundWebhook(rootDir, normalized);
+}
+
+export async function startWhatsAppWebhookIngress(
+  rootDir: string,
+  options: WhatsAppWebhookIngressOptions = {},
+): Promise<WhatsAppWebhookIngressHandle> {
+  const host = String(options.host || "0.0.0.0");
+  const port = Number.isFinite(options.port) ? Number(options.port) : 3001;
+  if (!Number.isFinite(port) || port < 0 || port > 65535) {
+    throw new Error(`Invalid webhook port '${String(options.port)}'.`);
+  }
+  const routePath = normalizeWebhookPath(options.path);
+  const verifyTokenEnvVar = String(options.verifyTokenEnvVar || "WHATSAPP_WEBHOOK_VERIFY_TOKEN");
+  const appSecretEnvVar = String(options.appSecretEnvVar || "WHATSAPP_APP_SECRET");
+  const maxBodyBytes = Number.isFinite(options.maxBodyBytes) ? Number(options.maxBodyBytes) : 1024 * 1024;
+  if (!Number.isFinite(maxBodyBytes) || maxBodyBytes < 1024) {
+    throw new Error(`Invalid maxBodyBytes '${String(options.maxBodyBytes)}'.`);
+  }
+
+  const server = http.createServer(async (req, res) => {
+    const method = String(req.method || "GET").toUpperCase();
+    const parsedUrl = new URL(req.url || "/", "http://localhost");
+    if (parsedUrl.pathname !== routePath) {
+      res.statusCode = 404;
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({ ok: false, error: "Not found" }));
+      return;
+    }
+
+    if (method === "GET") {
+      const expectedVerifyToken = process.env[verifyTokenEnvVar];
+      const challengeResult = validateWhatsAppWebhookChallenge(parsedUrl.searchParams, expectedVerifyToken);
+      if (challengeResult.ok) {
+        res.statusCode = challengeResult.statusCode;
+        res.setHeader("content-type", "text/plain");
+        res.end(challengeResult.challenge || "");
+        return;
+      }
+      res.statusCode = challengeResult.statusCode;
+      res.end(challengeResult.error || `Missing ${verifyTokenEnvVar}`);
+      return;
+    }
+
+    if (method !== "POST") {
+      res.statusCode = 405;
+      res.setHeader("allow", "GET, POST");
+      res.end("Method Not Allowed");
+      return;
+    }
+
+    try {
+      const chunks: Buffer[] = [];
+      let size = 0;
+      for await (const chunk of req) {
+        const bufferChunk = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+        size += bufferChunk.byteLength;
+        if (size > maxBodyBytes) {
+          res.statusCode = 413;
+          res.end("Payload too large");
+          return;
+        }
+        chunks.push(bufferChunk);
+      }
+      const rawBody = Buffer.concat(chunks).toString("utf-8").trim();
+      const appSecret = process.env[appSecretEnvVar];
+      const signatureHeader = Array.isArray(req.headers["x-hub-signature-256"])
+        ? req.headers["x-hub-signature-256"][0]
+        : req.headers["x-hub-signature-256"];
+      await ingestWhatsAppWebhookPayload(rootDir, rawBody, { appSecret, signatureHeader });
+      res.statusCode = 200;
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({ ok: true }));
+    } catch (error: any) {
+      const message = String(error?.message || error);
+      res.statusCode = message.includes("Invalid signature") ? 401 : 400;
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({ ok: false, error: message }));
+    }
+  });
+
+  await new Promise<void>((resolvePromise, rejectPromise) => {
+    server.once("error", rejectPromise);
+    server.listen(port, host, () => {
+      server.removeListener("error", rejectPromise);
+      resolvePromise();
+    });
+  });
+
+  const address = server.address();
+  let boundPort = port;
+  if (address && typeof address === "object") {
+    boundPort = address.port;
+  }
+
+  return {
+    host,
+    port: boundPort,
+    path: routePath,
+    close: async () => {
+      await new Promise<void>((resolvePromise, rejectPromise) => {
+        server.close((error) => {
+          if (error) rejectPromise(error);
+          else resolvePromise();
+        });
+      });
+    },
+  };
 }
 
 export async function runChannelRuntimeTick(

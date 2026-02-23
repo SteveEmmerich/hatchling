@@ -167,3 +167,93 @@ test("channel run whatsapp processes inbound webhook queue", async () => {
 
   await fs.rm(testHome, { recursive: true, force: true });
 });
+
+test("whatsapp webhook ingress helpers verify challenge and write inbound payload", async () => {
+  const testHome = path.join(process.cwd(), ".tmp-test-home-channel-runtime-whatsapp-webhook");
+  await fs.rm(testHome, { recursive: true, force: true });
+  await fs.mkdir(testHome, { recursive: true });
+
+  const env = {
+    ...process.env,
+    HATCHLING_HOME: testHome,
+    HATCHLING_HINDBRAIN_BACKEND: "cpu",
+    WHATSAPP_ACCESS_TOKEN: "token",
+    WHATSAPP_PHONE_NUMBER_ID: "phone-id",
+    WHATSAPP_WEBHOOK_VERIFY_TOKEN: "verify-me",
+  };
+  const init = spawnSync(
+    "node",
+    [
+      "dist/cli.js",
+      "init",
+      "--non-interactive",
+      "--name",
+      "channel-runtime-whatsapp-webhook-seed",
+      "--purpose",
+      "Validate whatsapp webhook ingress runtime",
+      "--personality",
+      "curious,direct",
+    ],
+    { cwd: process.cwd(), env, encoding: "utf-8" },
+  );
+  assert.equal(init.status, 0, `${init.stdout}\n${init.stderr}`);
+
+  const bootstrap = spawnSync("node", ["dist/cli.js", "channel", "bootstrap", "whatsapp"], {
+    cwd: process.cwd(),
+    env,
+    encoding: "utf-8",
+  });
+  assert.equal(bootstrap.status, 0, `${bootstrap.stdout}\n${bootstrap.stderr}`);
+
+  const rootDir = path.join(testHome, ".hatchlings", "channel-runtime-whatsapp-webhook-seed");
+  const {
+    ingestWhatsAppWebhookPayload,
+    runChannelRuntimeTick,
+    validateWhatsAppWebhookChallenge,
+  } = await import("../dist/system/channel-runtime.js");
+  process.env.WHATSAPP_ACCESS_TOKEN = "token";
+  process.env.WHATSAPP_PHONE_NUMBER_ID = "phone-id";
+
+  try {
+    const challenge = validateWhatsAppWebhookChallenge(
+      new URLSearchParams("hub.mode=subscribe&hub.verify_token=verify-me&hub.challenge=12345"),
+      "verify-me",
+    );
+    assert.equal(challenge.ok, true);
+    assert.equal(challenge.statusCode, 200);
+    assert.equal(challenge.challenge, "12345");
+
+    const payload = {
+      entry: [
+        {
+          changes: [
+            {
+              value: {
+                messages: [
+                  {
+                    id: "wamid.ingress123",
+                    from: "15555550123",
+                    text: { body: "hello from webhook ingress" },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    };
+    await ingestWhatsAppWebhookPayload(rootDir, JSON.stringify(payload));
+
+    const report = await runChannelRuntimeTick(rootDir, "whatsapp", { autoReply: false });
+    assert.equal(report.ok, true);
+    assert.equal(report.processed, 1);
+
+    const inboxPath = path.join(rootDir, "memory", "channels", "whatsapp", "inbox.jsonl");
+    const inbox = await fs.readFile(inboxPath, "utf-8");
+    assert.match(inbox, /hello from webhook ingress/i);
+  } finally {
+    await fs.rm(testHome, { recursive: true, force: true });
+    delete process.env.WHATSAPP_ACCESS_TOKEN;
+    delete process.env.WHATSAPP_PHONE_NUMBER_ID;
+  }
+});

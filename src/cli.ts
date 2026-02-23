@@ -1176,6 +1176,69 @@ const main = defineCommand({
             });
           },
         }),
+        webhook: defineCommand({
+          meta: { description: "Run webhook ingress server for channels that require push delivery" },
+          args: {
+            name: {
+              type: "positional",
+              required: true,
+              description: "Channel name (currently whatsapp)",
+            },
+            host: {
+              type: "string",
+              default: "0.0.0.0",
+              description: "Webhook bind host",
+            },
+            port: {
+              type: "string",
+              default: "3001",
+              description: "Webhook bind port",
+            },
+            path: {
+              type: "string",
+              default: "/webhooks/whatsapp",
+              description: "Webhook route path",
+            },
+          },
+          async run({ args }) {
+            const activeInstance = await getActiveInstance();
+            if (!activeInstance) {
+              clack.log.error("No active instance found. Run 'hatchling init' first.");
+              process.exit(1);
+            }
+            const rootDir = getInstancePath(activeInstance);
+            const channelName = String(args.name).trim().toLowerCase();
+            if (channelName !== "whatsapp") {
+              clack.log.error("Webhook ingress is currently supported for whatsapp only.");
+              process.exit(1);
+            }
+            const port = Number(args.port || "3001");
+            if (!Number.isFinite(port) || port < 0 || port > 65535) {
+              clack.log.error(`Invalid port: ${String(args.port)}`);
+              process.exit(1);
+            }
+            const { startWhatsAppWebhookIngress } = await import("./system/channel-runtime.js");
+            try {
+              const handle = await startWhatsAppWebhookIngress(rootDir, {
+                host: String(args.host || "0.0.0.0"),
+                port,
+                path: String(args.path || "/webhooks/whatsapp"),
+              });
+              clack.intro("🪝 WhatsApp Webhook Ingress");
+              clack.log.info(`Listening on http://${handle.host}:${handle.port}${handle.path}`);
+              clack.log.info("Expected env: WHATSAPP_WEBHOOK_VERIFY_TOKEN");
+              clack.log.info("Optional env for signature checks: WHATSAPP_APP_SECRET");
+              clack.log.info("Press Ctrl+C to stop.");
+              process.on("SIGINT", async () => {
+                await handle.close().catch(() => {});
+                process.exit(0);
+              });
+            } catch (error: any) {
+              clack.log.error(String(error.message || error));
+              process.exit(1);
+            }
+          },
+        }),
       },
     }),
 
