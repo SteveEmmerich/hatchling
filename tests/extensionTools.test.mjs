@@ -55,6 +55,7 @@ test("extension registers evolution tools and executes mutate_self/sync_germline
   assert.ok(commands.has("maintenance"));
   assert.ok(commands.has("good"));
   assert.ok(commands.has("bad"));
+  assert.ok(commands.has("pet"));
   assert.ok(tools.has("mutate_self"));
   assert.ok(tools.has("sync_germline"));
   assert.ok(tools.has("generate_backup"));
@@ -183,6 +184,18 @@ export function renderWebInterface(config: WebInterfaceConfig): string {
   });
   assert.equal(creatureResult.details.success, true);
   assert.equal(creatureResult.details.genome.palette, "ocean");
+
+  const petCommand = commands.get("pet");
+  const notifications = [];
+  await petCommand.handler("frames=3 delay=1", {
+    ui: {
+      notify(message, level) {
+        notifications.push({ message, level });
+      },
+    },
+  });
+  assert.equal(notifications.length >= 3, true);
+  assert.match(String(notifications[0].message), /🧸/);
 
   await fs.rm(repoDir, { recursive: true, force: true });
 

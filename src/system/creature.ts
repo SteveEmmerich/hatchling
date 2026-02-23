@@ -28,6 +28,11 @@ export interface CreatureRender {
   lines: string[];
 }
 
+export interface CreatureAnimationFrame {
+  index: number;
+  lines: string[];
+}
+
 function hashSeed(seed: string): number {
   let hash = 2166136261;
   for (let i = 0; i < seed.length; i += 1) {
@@ -153,6 +158,43 @@ export function renderCreature(input: CreatureInput): CreatureRender {
     variantId: `v${(seedHash % 1000).toString().padStart(3, "0")}`,
     lines,
   };
+}
+
+function blinkLines(lines: string[]): string[] {
+  return lines.map((line) => line.replace(/[oO\^\*]/g, "-"));
+}
+
+function shiftLines(lines: string[], spaces: number): string[] {
+  const pad = " ".repeat(Math.max(0, spaces));
+  return lines.map((line) => `${pad}${line}`);
+}
+
+export function renderCreatureAnimationFrames(
+  creature: CreatureRender,
+  frameCount = 8,
+): CreatureAnimationFrame[] {
+  const count = Math.max(1, Math.floor(frameCount));
+  const frames: CreatureAnimationFrame[] = [];
+  for (let i = 0; i < count; i += 1) {
+    const bob = i % 4 === 2 ? 1 : 0;
+    const shouldBlink = creature.mood !== "sick" && i % 6 === 3;
+    const base = shouldBlink ? blinkLines(creature.lines) : creature.lines;
+    const moodLine =
+      creature.mood === "playful"
+        ? i % 2 === 0 ? "  ~ wiggle ~" : "  ~ zoom ~"
+        : creature.mood === "sleepy"
+          ? "  z z z"
+          : creature.mood === "evolving"
+            ? i % 2 === 0 ? "  ✦ mutate ✦" : "  ✧ adapt ✧"
+            : creature.mood === "sick"
+              ? "  ...recovering..."
+              : "  ...";
+    frames.push({
+      index: i,
+      lines: [...shiftLines(base, bob), moodLine],
+    });
+  }
+  return frames;
 }
 
 function paletteColors(palette: CreaturePalette | undefined): { skin: string; detail: string; bg: string } {

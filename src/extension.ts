@@ -81,6 +81,76 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
+  pi.registerCommand("pet", {
+    description: "Show animated hatchling creature frames in the TUI stream (e.g. /pet frames=12 delay=180)",
+    handler: async (args, ctx) => {
+      const parseArg = (name: string, fallback: number): number => {
+        const match = String(args || "").match(new RegExp(`${name}=(\\d+)`, "i"));
+        if (!match || !match[1]) return fallback;
+        const parsed = Number(match[1]);
+        if (!Number.isFinite(parsed)) return fallback;
+        return parsed;
+      };
+      const frames = Math.max(1, Math.min(40, parseArg("frames", 12)));
+      const delay = Math.max(50, Math.min(2000, parseArg("delay", 180)));
+
+      const { PathGuard } = await import("./system/pathGuard.js");
+      const { renderCreature, renderCreatureAnimationFrames } = await import("./system/creature.js");
+      const { loadGenome } = await import("./system/creature-genome.js");
+      const { checkHealth } = await import("./system/health.js");
+      PathGuard.setRoot(rootDir);
+
+      const readJsonOrDefault = async <T,>(relativePath: string, fallback: T): Promise<T> => {
+        try {
+          const fullPath = await PathGuard.validatePath(relativePath, "read");
+          return JSON.parse(await fs.readFile(fullPath, "utf-8")) as T;
+        } catch {
+          return fallback;
+        }
+      };
+
+      const config = await readJsonOrDefault("brain/config.json", { name: "hatchling", createdAt: rootDir });
+      const mutationState = await readJsonOrDefault("brain/mutation_state.json", {
+        sleepCycles: 0,
+        successfulMutations: 0,
+        totalMutations: 0,
+      });
+      const curiosity = await readJsonOrDefault("brain/curiosity_state.json", { adjustedCuriosity: 5 });
+      const quotas = await readJsonOrDefault("brain/quotas.json", { tokens: { today: 0, maxPerDay: 100000 } });
+      const heartbeat = await readJsonOrDefault("brain/heartbeat.json", { lowEnergy: false });
+      const health = await checkHealth();
+      const tokenUsagePercent = (quotas.tokens.today / quotas.tokens.maxPerDay) * 100;
+      const energyLevel = tokenUsagePercent > 90 ? "Critical" : tokenUsagePercent > 70 ? "Low" : "High";
+      const seed = `${config.name || "hatchling"}:${config.createdAt || rootDir}`;
+      const genome = await loadGenome(rootDir, seed);
+      const creature = renderCreature({
+        seed,
+        commitCount: 1,
+        sleepCycles: Number(mutationState.sleepCycles || 0),
+        successfulMutations: Number(mutationState.successfulMutations || 0),
+        totalMutations: Number(mutationState.totalMutations || 0),
+        curiosity: Number(curiosity.adjustedCuriosity || 5),
+        energyLevel,
+        safeMode: Boolean(health.safeMode),
+        lowEnergy: Boolean(heartbeat.lowEnergy),
+        palette: genome.palette,
+        body: genome.body,
+        eyes: genome.eyes,
+        accent: genome.accent,
+      });
+
+      const animationFrames = renderCreatureAnimationFrames(creature, frames);
+      for (const frame of animationFrames) {
+        ctx.ui.notify(
+          [`🧸 ${creature.stage} (${creature.mood}) ${creature.variantId}`, ...frame.lines].join("\n"),
+          "info",
+        );
+        // Run as a live stream animation in TUI.
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    },
+  });
+
   pi.registerCommand("sleep", {
     description: "Run one sleep consolidation cycle",
     handler: async (_args, ctx) => {
