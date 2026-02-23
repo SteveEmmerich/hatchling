@@ -88,6 +88,115 @@ test("telegram channel runtime tick ingests updates with injected fetch", async 
   await fs.rm(testHome, { recursive: true, force: true });
 });
 
+test("telegram channel runtime applies route policy and custom reply template", async () => {
+  const testHome = path.join(process.cwd(), ".tmp-test-home-channel-runtime-telegram-policy");
+  await fs.rm(testHome, { recursive: true, force: true });
+  await fs.mkdir(testHome, { recursive: true });
+
+  const env = {
+    ...process.env,
+    HATCHLING_HOME: testHome,
+    HATCHLING_HINDBRAIN_BACKEND: "cpu",
+    TELEGRAM_BOT_TOKEN: "test-token",
+    TELEGRAM_CHAT_ID: "123",
+  };
+  const init = spawnSync(
+    "node",
+    [
+      "dist/cli.js",
+      "init",
+      "--non-interactive",
+      "--name",
+      "channel-runtime-telegram-policy-seed",
+      "--purpose",
+      "Validate telegram channel policy routing",
+      "--personality",
+      "curious,direct",
+    ],
+    { cwd: process.cwd(), env, encoding: "utf-8" },
+  );
+  assert.equal(init.status, 0, `${init.stdout}\n${init.stderr}`);
+
+  const bootstrap = spawnSync("node", ["dist/cli.js", "channel", "bootstrap", "telegram"], {
+    cwd: process.cwd(),
+    env,
+    encoding: "utf-8",
+  });
+  assert.equal(bootstrap.status, 0, `${bootstrap.stdout}\n${bootstrap.stderr}`);
+
+  process.env.TELEGRAM_BOT_TOKEN = "test-token";
+  process.env.TELEGRAM_CHAT_ID = "123";
+
+  const rootDir = path.join(testHome, ".hatchlings", "channel-runtime-telegram-policy-seed");
+  const policyPath = path.join(rootDir, "brain", "channel_policy.json");
+  const policy = JSON.parse(await fs.readFile(policyPath, "utf-8"));
+  policy.telegram.routes = [
+    {
+      name: "priority_help",
+      match: { containsAny: ["help"], startsWithAny: [], senderAllowlist: [] },
+      responseTemplate: "Priority support response to {{sender}}",
+      suppressReply: false,
+    },
+  ];
+  await fs.writeFile(policyPath, JSON.stringify(policy, null, 2), "utf-8");
+
+  const { runChannelRuntimeTick } = await import("../dist/system/channel-runtime.js");
+  const sentMessages = [];
+  const fakeFetch = async (url, initReq) => {
+    const asString = String(url);
+    if (/getUpdates/i.test(asString)) {
+      return {
+        ok: true,
+        async json() {
+          return {
+            ok: true,
+            result: [
+              {
+                update_id: 9101,
+                message: {
+                  text: "please help",
+                  chat: { id: "123" },
+                  from: { id: "777" },
+                },
+              },
+            ],
+          };
+        },
+        async text() {
+          return "";
+        },
+      };
+    }
+    if (/sendMessage/i.test(asString)) {
+      sentMessages.push(JSON.parse(String(initReq?.body || "{}")));
+      return {
+        ok: true,
+        async json() {
+          return { ok: true };
+        },
+        async text() {
+          return "";
+        },
+      };
+    }
+    throw new Error(`Unexpected URL ${asString}`);
+  };
+
+  const report = await runChannelRuntimeTick(rootDir, "telegram", { fetchImpl: fakeFetch, autoReply: true });
+  assert.equal(report.ok, true);
+  assert.equal(report.processed, 1);
+  assert.equal(sentMessages.length, 1);
+  assert.match(String(sentMessages[0].text), /Priority support response to 777/);
+
+  const routingPath = path.join(rootDir, "memory", "channels", "telegram", "routing.jsonl");
+  const routing = await fs.readFile(routingPath, "utf-8");
+  assert.match(routing, /priority_help/i);
+
+  await fs.rm(testHome, { recursive: true, force: true });
+  delete process.env.TELEGRAM_BOT_TOKEN;
+  delete process.env.TELEGRAM_CHAT_ID;
+});
+
 test("channel run whatsapp processes inbound webhook queue", async () => {
   const testHome = path.join(process.cwd(), ".tmp-test-home-channel-runtime-whatsapp");
   await fs.rm(testHome, { recursive: true, force: true });

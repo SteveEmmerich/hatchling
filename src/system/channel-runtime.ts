@@ -5,6 +5,7 @@ import http from "node:http";
 import crypto from "node:crypto";
 import type { SupportedChannel } from "./channels.js";
 import { validateChannelCapability } from "./channels.js";
+import { readChannelPolicy, evaluateChannelPolicy } from "./channel-policy.js";
 
 type LoopHandle = {
   timer: NodeJS.Timeout;
@@ -63,6 +64,10 @@ function inboxPath(rootDir: string, channel: SupportedChannel): string {
   return path.join(rootDir, "memory", "channels", channel, "inbox.jsonl");
 }
 
+function routingPath(rootDir: string, channel: SupportedChannel): string {
+  return path.join(rootDir, "memory", "channels", channel, "routing.jsonl");
+}
+
 function whatsappInboundWebhookPath(rootDir: string): string {
   return path.join(rootDir, "memory", "channels", "whatsapp", "inbound_webhooks.jsonl");
 }
@@ -85,6 +90,12 @@ async function writeState(rootDir: string, channel: SupportedChannel, state: Cha
 
 async function appendInbox(rootDir: string, channel: SupportedChannel, entry: Record<string, any>): Promise<void> {
   const target = inboxPath(rootDir, channel);
+  await fs.mkdir(path.dirname(target), { recursive: true });
+  await fs.appendFile(target, `${JSON.stringify(entry)}\n`, "utf-8");
+}
+
+async function appendRoutingDecision(rootDir: string, channel: SupportedChannel, entry: Record<string, any>): Promise<void> {
+  const target = routingPath(rootDir, channel);
   await fs.mkdir(path.dirname(target), { recursive: true });
   await fs.appendFile(target, `${JSON.stringify(entry)}\n`, "utf-8");
 }
@@ -135,6 +146,7 @@ async function runTelegramTick(
   }
   const payload = await response.json() as { ok?: boolean; result?: any[] };
   const updates = Array.isArray(payload.result) ? payload.result : [];
+  const policy = await readChannelPolicy(rootDir);
   let processed = 0;
   let maxUpdateId = offset;
 
@@ -154,8 +166,15 @@ async function runTelegramTick(
       text,
       receivedAt: new Date().toISOString(),
     });
-    if (options.autoReply) {
-      await sendTelegramMessage(botToken, chatId, `Acknowledged: ${text}`, fetchImpl);
+    const decision = evaluateChannelPolicy("telegram", text, String(message?.from?.id || chatId), policy, new Date());
+    await appendRoutingDecision(rootDir, "telegram", {
+      ...decision,
+      externalId: `telegram:${updateId}`,
+      chatId,
+      at: new Date().toISOString(),
+    });
+    if (options.autoReply && decision.shouldReply && decision.responseText) {
+      await sendTelegramMessage(botToken, chatId, decision.responseText, fetchImpl);
     }
   }
 
@@ -230,6 +249,7 @@ async function runWhatsAppTick(
   const fetchImpl = options.fetchImpl || fetch;
   const token = process.env.WHATSAPP_ACCESS_TOKEN;
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const policy = await readChannelPolicy(rootDir);
 
   for (let i = cursor; i < lines.length; i += 1) {
     const events = extractWhatsAppEvents(lines[i]);
@@ -242,8 +262,14 @@ async function runWhatsAppTick(
         text: event.text,
         receivedAt: new Date().toISOString(),
       });
-      if (options.autoReply && token && phoneNumberId) {
-        await sendWhatsAppMessage(token, phoneNumberId, event.from, `Acknowledged: ${event.text}`, fetchImpl);
+      const decision = evaluateChannelPolicy("whatsapp", event.text, event.from, policy, new Date());
+      await appendRoutingDecision(rootDir, "whatsapp", {
+        ...decision,
+        externalId: `whatsapp:${event.id}`,
+        at: new Date().toISOString(),
+      });
+      if (options.autoReply && token && phoneNumberId && decision.shouldReply && decision.responseText) {
+        await sendWhatsAppMessage(token, phoneNumberId, event.from, decision.responseText, fetchImpl);
       }
     }
   }

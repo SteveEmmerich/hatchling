@@ -39,6 +39,7 @@ test("dna generation preserves instance config metadata and seeds state files", 
     "curiosity_state.json",
     "quotas.json",
     "EVOLUTION_LOG.json",
+    "channel_policy.json",
   ]) {
     await fs.access(path.join(instancePath, "brain", file));
   }

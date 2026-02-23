@@ -81,5 +81,16 @@ test("channel bootstrap -> validate -> test-message simulated flow", async () =>
   const outboxContent = await fs.readFile(delivery.outboxPath, "utf-8");
   assert.match(outboxContent, /hello from hatchling/i);
 
+  const policyResult = spawnSync(
+    "node",
+    ["dist/cli.js", "channel", "policy", "--json"],
+    { cwd: process.cwd(), env: readyEnv, encoding: "utf-8" },
+  );
+  assert.equal(policyResult.status, 0, `${policyResult.stdout}\n${policyResult.stderr}`);
+  const policyPayload = JSON.parse(policyResult.stdout);
+  assert.equal(policyPayload.ok, true);
+  assert.match(policyPayload.path, /brain\/channel_policy\.json/i);
+  assert.equal(typeof policyPayload.policy.telegram.defaultResponseTemplate, "string");
+
   await fs.rm(testHome, { recursive: true, force: true });
 });

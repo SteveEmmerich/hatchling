@@ -1239,6 +1239,42 @@ const main = defineCommand({
             }
           },
         }),
+        policy: defineCommand({
+          meta: { description: "Inspect and validate channel routing/response policy" },
+          args: {
+            json: {
+              type: "boolean",
+              default: false,
+              description: "Print machine-readable output",
+            },
+          },
+          async run({ args }) {
+            const activeInstance = await getActiveInstance();
+            if (!activeInstance) {
+              clack.log.error("No active instance found. Run 'hatchling init' first.");
+              process.exit(1);
+            }
+            const rootDir = getInstancePath(activeInstance);
+            const { channelPolicyPath, readChannelPolicy } = await import("./system/channel-policy.js");
+            try {
+              const policy = await readChannelPolicy(rootDir);
+              const targetPath = channelPolicyPath(rootDir);
+              if (args.json) {
+                console.log(JSON.stringify({ ok: true, path: targetPath, policy }, null, 2));
+              } else {
+                clack.log.success(`Channel policy is valid: ${targetPath}`);
+                clack.log.info("Edit this JSON to adjust routing rules and reply behavior.");
+              }
+            } catch (error: any) {
+              if (args.json) {
+                console.log(JSON.stringify({ ok: false, error: String(error.message || error) }, null, 2));
+              } else {
+                clack.log.error(String(error.message || error));
+              }
+              process.exit(1);
+            }
+          },
+        }),
       },
     }),
 

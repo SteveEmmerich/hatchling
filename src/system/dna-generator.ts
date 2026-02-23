@@ -105,6 +105,41 @@ export async function generateDNAFiles(
       null,
       2,
     ),
+    "channel_policy.json": JSON.stringify(
+      {
+        version: 1,
+        telegram: {
+          enabled: true,
+          blockedSenders: [],
+          defaultResponseTemplate: "Acknowledged: {{text}}",
+          quietHours: { enabled: false, startHourUtc: 23, endHourUtc: 7 },
+          routes: [
+            {
+              name: "help",
+              match: { containsAny: ["help", "support"], startsWithAny: [], senderAllowlist: [] },
+              responseTemplate: "I can help. Tell me your goal and I will propose next actions.",
+              suppressReply: false,
+            },
+          ],
+        },
+        whatsapp: {
+          enabled: true,
+          blockedSenders: [],
+          defaultResponseTemplate: "Received on {{channel}}: {{text}}",
+          quietHours: { enabled: false, startHourUtc: 23, endHourUtc: 7 },
+          routes: [
+            {
+              name: "maintenance",
+              match: { containsAny: ["sleep", "maintain"], startsWithAny: [], senderAllowlist: [] },
+              responseTemplate: "Maintenance noted. I will run upkeep on the next cycle.",
+              suppressReply: false,
+            },
+          ],
+        },
+      },
+      null,
+      2,
+    ),
     "mcp_servers.json": JSON.stringify({ servers: [] }, null, 2),
     "capabilities.json": JSON.stringify(
       {
