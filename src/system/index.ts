@@ -16,6 +16,7 @@ export * from './vector_memory.js';
 export * from './backup.js';
 export * from './share.js';
 export * from './feedback.js';
+export * from './personality-adaptation.js';
 export * from './debug.js';
 export * from './skills.js';
 export * from './web.js';

@@ -6,6 +6,7 @@ import crypto from "node:crypto";
 import type { SupportedChannel } from "./channels.js";
 import { validateChannelCapability } from "./channels.js";
 import { readChannelPolicy, evaluateChannelPolicy } from "./channel-policy.js";
+import { loadPersonalityState, styleReplyForPersonality } from "./personality-adaptation.js";
 
 type LoopHandle = {
   timer: NodeJS.Timeout;
@@ -147,6 +148,7 @@ async function runTelegramTick(
   const payload = await response.json() as { ok?: boolean; result?: any[] };
   const updates = Array.isArray(payload.result) ? payload.result : [];
   const policy = await readChannelPolicy(rootDir);
+  const personality = await loadPersonalityState(rootDir);
   let processed = 0;
   let maxUpdateId = offset;
 
@@ -174,7 +176,8 @@ async function runTelegramTick(
       at: new Date().toISOString(),
     });
     if (options.autoReply && decision.shouldReply && decision.responseText) {
-      await sendTelegramMessage(botToken, chatId, decision.responseText, fetchImpl);
+      const styledReply = styleReplyForPersonality(decision.responseText, personality);
+      await sendTelegramMessage(botToken, chatId, styledReply, fetchImpl);
     }
   }
 
@@ -250,6 +253,7 @@ async function runWhatsAppTick(
   const token = process.env.WHATSAPP_ACCESS_TOKEN;
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   const policy = await readChannelPolicy(rootDir);
+  const personality = await loadPersonalityState(rootDir);
 
   for (let i = cursor; i < lines.length; i += 1) {
     const events = extractWhatsAppEvents(lines[i]);
@@ -269,7 +273,8 @@ async function runWhatsAppTick(
         at: new Date().toISOString(),
       });
       if (options.autoReply && token && phoneNumberId && decision.shouldReply && decision.responseText) {
-        await sendWhatsAppMessage(token, phoneNumberId, event.from, decision.responseText, fetchImpl);
+        const styledReply = styleReplyForPersonality(decision.responseText, personality);
+        await sendWhatsAppMessage(token, phoneNumberId, event.from, styledReply, fetchImpl);
       }
     }
   }

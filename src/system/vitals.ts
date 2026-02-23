@@ -4,6 +4,7 @@ import { execSync } from 'child_process';
 import fs from 'fs/promises';
 import { renderCreature } from './creature.js';
 import { loadGenome } from './creature-genome.js';
+import { loadPersonalityState } from './personality-adaptation.js';
 
 async function readJsonOrDefault<T>(relativePath: string, fallback: T): Promise<T> {
   try {
@@ -70,6 +71,11 @@ export async function getVitals() {
     root,
     `${config.name || 'hatchling'}:${config.createdAt || root}`,
   );
+  const personality = await loadPersonalityState(root);
+  const personalityLabel = [
+    ...personality.baseTraits.slice(0, 3),
+    ...personality.adaptiveTraits.slice(0, 2),
+  ].join(", ");
   const creature = renderCreature({
     seed: `${config.name || 'hatchling'}:${config.createdAt || root}`,
     commitCount,
@@ -95,6 +101,7 @@ ${creatureBlock}
 🧬 Genetic Age:      ${commitCount} commits
 🦠 Mutations Today:  ${mutationState.mutationsToday} / 5 (Daily)
 🧪 Success Rate:     ${successRatio}%
+🧠 Personality:      ${personalityLabel || "curious"}
 ⚡ Metabolism:       ${energyLevel} (${tokenUsagePercent.toFixed(1)}% Token Usage)
 🏥 Biological Integrity: ${health.safeMode ? '⚠️ SAFE MODE' : '✅ Healthy'}
 👻 Ghost Pulse:      ${daemonStatus}

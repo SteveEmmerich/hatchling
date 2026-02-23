@@ -37,6 +37,7 @@ test("dna generation preserves instance config metadata and seeds state files", 
   for (const file of [
     "mutation_state.json",
     "curiosity_state.json",
+    "personality_state.json",
     "quotas.json",
     "EVOLUTION_LOG.json",
     "channel_policy.json",

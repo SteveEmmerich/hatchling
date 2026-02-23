@@ -25,6 +25,7 @@ Last updated: 2026-02-22
 - Share kit: `hatchling share` creates portable bundle + manifest + quickstart artifacts.
 - Creature TUI flair: vitals include deterministic per-instance creature avatar, growth stage, and mood rendering.
 - Creature genome system: `brain/creature_genome.json` drives deterministic variation with safe mutation commands and animated web SVG composition.
+- Personality adaptation system: `brain/personality_state.json` persists feedback-driven behavioral signals and adaptive traits; channel auto-replies are tone-shaped by this state.
 - Manual E2E:
   - `hatchling init` completes with degraded local discovery prompts when Hindbrain model init fails.
   - `hatchling start` resolves active instance path and launches the pi subprocess.
@@ -57,7 +58,8 @@ Last updated: 2026-02-22
 
 1. Conversational runtime UX depth
 - Identity onboarding is now conversational-first with narrative inference plus iterative revision.
-- In-session social behavior polish still needs deeper personality adaptation over time.
+- Feedback-driven personality adaptation over time is implemented with persisted signals + adaptive traits.
+- Still needed: richer long-memory social behavior (relationship arcs, preference modeling, and context carryover).
 
 2. Real transport adapters
 - Telegram/WhatsApp bootstrap, validation, and dedicated runtime loops are implemented.

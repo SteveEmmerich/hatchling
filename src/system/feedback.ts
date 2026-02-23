@@ -1,9 +1,11 @@
 import { PathGuard } from './pathGuard.js';
 import fs from 'fs/promises';
 import { Telemetry } from './telemetry.js';
+import { adaptPersonalityFromFeedback } from './personality-adaptation.js';
 
 export async function recordFeedback(sentiment: 'positive' | 'negative', context?: string) {
   const timestamp = new Date().toISOString();
+  const root = PathGuard.getAgentRoot();
   
   // 1. Log to Telemetry
   await Telemetry.log(
@@ -47,11 +49,16 @@ export async function recordFeedback(sentiment: 'positive' | 'negative', context
 
     await fs.writeFile(curiosityPath, JSON.stringify(curiosity, null, 2));
     
+    const personality = await adaptPersonalityFromFeedback(root, sentiment, context);
+    const adaptiveLabel = personality.adaptiveTraits.length > 0
+      ? ` Adaptive traits: ${personality.adaptiveTraits.join(", ")}.`
+      : "";
+
     return {
       newCuriosity: newLevel,
       message: sentiment === 'positive' 
-        ? `Thanks! Curiosity increased to ${newLevel.toFixed(1)}.` 
-        : `Understood. Curiosity dampened to ${newLevel.toFixed(1)}.`
+        ? `Thanks! Curiosity increased to ${newLevel.toFixed(1)}.${adaptiveLabel}` 
+        : `Understood. Curiosity dampened to ${newLevel.toFixed(1)}.${adaptiveLabel}`
     };
   } catch (e: any) {
     console.error('Failed to update curiosity from feedback:', e);

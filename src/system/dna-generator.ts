@@ -65,6 +65,24 @@ export async function generateDNAFiles(
       null,
       2,
     ),
+    "personality_state.json": JSON.stringify(
+      {
+        version: 1,
+        baseTraits: data.personality.map((trait) => String(trait).trim().toLowerCase()).filter(Boolean),
+        adaptiveTraits: [],
+        signals: {
+          confidence: 5,
+          caution: 4,
+          warmth: 5,
+          stress: 3,
+        },
+        totalFeedback: 0,
+        lastUpdatedAt: now,
+        adjustments: [],
+      },
+      null,
+      2,
+    ),
     "quotas.json": JSON.stringify(
       {
         tokens: {
