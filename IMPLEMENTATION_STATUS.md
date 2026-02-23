@@ -17,6 +17,7 @@ Last updated: 2026-02-22
 - Evolution safety: `hatchling evolve` supports approval policy and rollback via `hatchling rollback`.
 - Autonomous loop: `hatchling autonomy` supports bounded multi-step planning/execution with approval gates and run logging.
 - Cross-session autonomy strategy: persistent prioritized goal backlog + run reflections in `brain/autonomy_strategy.json` and `brain/autonomy_reflections.md`.
+- Self-generated autonomy strategy goals: runtime now synthesizes strategic objectives from local state (channels, MCP, personality signals, backlog hygiene) and merges them into the strategy queue.
 - Channel transport: `channel test-message` supports simulated or live provider API mode (`--live`).
 - Channel runtime loop: `channel run <telegram|whatsapp>` provides a dedicated live chat loop separate from maintenance.
 - WhatsApp webhook ingress: `channel webhook whatsapp` provides Meta verification + inbound payload capture into runtime queue.
@@ -71,7 +72,8 @@ Last updated: 2026-02-22
 3. Autonomous long-horizon planning
 - Bounded autonomy loop is implemented with approval guards and run logs.
 - Cross-session reprioritization and reflection heuristics are now implemented for persistent pending goals.
-- Still needed: richer self-generated strategic goal creation beyond user-provided objective decomposition.
+- Self-generated strategic objectives are now synthesized and prioritized alongside user goals.
+- Still needed: richer model-based planning depth for truly open-ended long-horizon exploration.
 
 ## Completion Criteria for First Stable Release
 

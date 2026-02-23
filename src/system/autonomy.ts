@@ -6,7 +6,9 @@ import {
   appendAutonomyReflection,
   applyRunToStrategy,
   seedStrategyGoals,
+  seedStrategyGoalsWithPriority,
   selectNextGoals,
+  synthesizeStrategicObjectives,
   type StrategyGoal,
 } from "./autonomy-strategy.js";
 
@@ -39,6 +41,7 @@ export interface AutonomousRunResult {
   goal: string;
   execute: boolean;
   objectives: string[];
+  strategyGeneratedObjectives: string[];
   steps: AutonomousStep[];
   stoppedReason?: string;
 }
@@ -51,6 +54,7 @@ interface AutonomyLogPayload {
     createdAt: string;
     ok: boolean;
     objectives: string[];
+    strategyGeneratedObjectives?: string[];
     stoppedReason?: string;
     steps: Array<{
       index: number;
@@ -104,6 +108,7 @@ async function appendLog(rootDir: string, result: AutonomousRunResult): Promise<
     createdAt: new Date().toISOString(),
     ok: result.ok,
     objectives: result.objectives,
+    strategyGeneratedObjectives: result.strategyGeneratedObjectives,
     stoppedReason: result.stoppedReason,
     steps: result.steps.map((step) => ({
       index: step.index,
@@ -127,9 +132,12 @@ export async function runAutonomousEvolution(
   const execute = Boolean(options.execute);
   const useStrategy = options.useStrategy !== false;
   const requestedObjectives = splitObjectives(goal, maxSteps);
+  let strategyGeneratedObjectives: string[] = [];
   let objectives = requestedObjectives;
   if (useStrategy) {
-    const seeded = await seedStrategyGoals(rootDir, requestedObjectives);
+    await seedStrategyGoals(rootDir, requestedObjectives);
+    strategyGeneratedObjectives = await synthesizeStrategicObjectives(rootDir, Math.max(1, Math.floor(maxSteps / 2)));
+    const seeded = await seedStrategyGoalsWithPriority(rootDir, strategyGeneratedObjectives, 0.35);
     objectives = objectiveListFromStrategy(selectNextGoals(seeded, maxSteps));
   }
   const run = runId();
@@ -209,6 +217,7 @@ export async function runAutonomousEvolution(
     goal,
     execute,
     objectives,
+    strategyGeneratedObjectives,
     steps,
     stoppedReason: stoppedReason || undefined,
   };

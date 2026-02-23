@@ -57,6 +57,8 @@ test("autonomy strategy persists blocked goals and reprioritizes them across run
   const firstPayload = parseJsonPayload(firstRun.stdout);
   assert.equal(firstPayload.stoppedReason, "approval_required");
   assert.equal(firstPayload.steps.some((step) => step.status === "blocked"), true);
+  assert.equal(Array.isArray(firstPayload.strategyGeneratedObjectives), true);
+  assert.equal(firstPayload.strategyGeneratedObjectives.length >= 1, true);
 
   const secondRun = spawnSync(
     "node",
@@ -82,6 +84,8 @@ test("autonomy strategy persists blocked goals and reprioritizes them across run
   assert.ok(claudeGoal);
   assert.equal(claudeGoal.status, "pending");
   assert.equal(claudeGoal.priority > 1, true);
+  const synthesized = strategy.goals.find((entry) => /audit autonomy backlog priorities/i.test(String(entry.objective)));
+  assert.ok(synthesized);
 
   const reflectionsPath = path.join(instanceRoot, "brain", "autonomy_reflections.md");
   const reflections = await fs.readFile(reflectionsPath, "utf-8");

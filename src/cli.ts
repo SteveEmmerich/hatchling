@@ -1726,6 +1726,9 @@ const main = defineCommand({
         } else {
           clack.intro("🧭 Autonomous Evolution");
           clack.log.message(`Run: ${result.runId}`);
+          if (result.strategyGeneratedObjectives.length > 0) {
+            clack.log.info(`Synthesized strategy goals: ${result.strategyGeneratedObjectives.length}`);
+          }
           result.steps.forEach((step) => {
             clack.log.message(
               `${step.index}. [${step.status}] ${step.objective} (${step.plan.actions.length} action(s))`,

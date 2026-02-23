@@ -263,6 +263,7 @@ hatchling channel policy --json
 Bootstrap now also installs a reusable shared skill at `limbs/channel-mcp-bridge` with recommended MCP server references for Telegram and WhatsApp.
 Inbound messages are routed through `brain/channel_policy.json` and decision logs are written to `memory/channels/<channel>/routing.jsonl`.
 Feedback continuously shapes `brain/personality_state.json`, and channel auto-replies adapt tone from this evolving state.
+Autonomy runs now also synthesize strategic self-goals from local state and merge them with user-requested goals in `brain/autonomy_strategy.json`.
 
 ### Directory Structure
 

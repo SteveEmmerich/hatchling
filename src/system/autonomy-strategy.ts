@@ -70,6 +70,14 @@ async function saveAutonomyStrategy(rootDir: string, strategy: AutonomyStrategy)
 }
 
 export async function seedStrategyGoals(rootDir: string, objectives: string[]): Promise<AutonomyStrategy> {
+  return seedStrategyGoalsWithPriority(rootDir, objectives, 1);
+}
+
+export async function seedStrategyGoalsWithPriority(
+  rootDir: string,
+  objectives: string[],
+  priority = 1,
+): Promise<AutonomyStrategy> {
   const strategy = await loadAutonomyStrategy(rootDir);
   const timestamp = nowIso();
   for (const objective of objectives) {
@@ -82,7 +90,7 @@ export async function seedStrategyGoals(rootDir: string, objectives: string[]): 
       objective: objective.trim(),
       key,
       status: "pending",
-      priority: 1,
+      priority: Math.max(0.1, Number(priority) || 1),
       attempts: 0,
       successes: 0,
       failures: 0,
@@ -94,6 +102,55 @@ export async function seedStrategyGoals(rootDir: string, objectives: string[]): 
   }
   await saveAutonomyStrategy(rootDir, strategy);
   return strategy;
+}
+
+async function readJsonOrDefault<T>(filePath: string, fallback: T): Promise<T> {
+  if (!existsSync(filePath)) return fallback;
+  try {
+    return JSON.parse(await fs.readFile(filePath, "utf-8")) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+export async function synthesizeStrategicObjectives(rootDir: string, maxObjectives = 3): Promise<string[]> {
+  const goals: string[] = [];
+  const capabilities = await readJsonOrDefault<{ capabilities?: Record<string, { enabled?: boolean }> }>(
+    path.join(rootDir, "brain", "capabilities.json"),
+    { capabilities: {} },
+  );
+  const personality = await readJsonOrDefault<{ signals?: { stress?: number; caution?: number }; totalFeedback?: number }>(
+    path.join(rootDir, "brain", "personality_state.json"),
+    { signals: { stress: 3, caution: 4 }, totalFeedback: 0 },
+  );
+  const mcp = await readJsonOrDefault<{ servers?: Array<{ enabled?: boolean }> }>(
+    path.join(rootDir, "brain", "mcp_servers.json"),
+    { servers: [] },
+  );
+  const hasTelegram = Boolean(capabilities.capabilities?.["channel.telegram"]?.enabled);
+  const hasWhatsApp = Boolean(capabilities.capabilities?.["channel.whatsapp"]?.enabled);
+  const stress = Number(personality.signals?.stress || 0);
+  const caution = Number(personality.signals?.caution || 0);
+  const totalFeedback = Number(personality.totalFeedback || 0);
+  const enabledServers = Array.isArray(mcp.servers)
+    ? mcp.servers.filter((server) => server?.enabled !== false).length
+    : 0;
+
+  if (hasTelegram || hasWhatsApp) {
+    goals.push("Review channel routing decisions and add one improved policy rule for common intents");
+  }
+  if (enabledServers === 0) {
+    goals.push("Install and enable one MCP server that matches the current communication workflow");
+  }
+  if (stress >= 6 || caution >= 7) {
+    goals.push("Run a reliability hardening pass and reduce operational risk in active loops");
+  }
+  if (totalFeedback >= 5) {
+    goals.push("Summarize repeated user feedback patterns and encode one actionable behavior update");
+  }
+  goals.push("Audit autonomy backlog priorities and retire stale pending goals");
+  const unique = Array.from(new Set(goals.map((goal) => goal.trim()).filter(Boolean)));
+  return unique.slice(0, Math.max(1, Math.floor(maxObjectives)));
 }
 
 export function selectNextGoals(strategy: AutonomyStrategy, maxSteps: number): StrategyGoal[] {
