@@ -61,6 +61,7 @@ test("extension registers evolution tools and executes mutate_self/sync_germline
   assert.ok(tools.has("install_skill"));
   assert.ok(tools.has("evolve_goal"));
   assert.ok(tools.has("autonomy_loop"));
+  assert.ok(tools.has("mutate_creature_appearance"));
 
   const mutateSelf = tools.get("mutate_self");
   const mutateResult = await mutateSelf.execute("tool-call-1", {
@@ -174,6 +175,14 @@ export function renderWebInterface(config: WebInterfaceConfig): string {
   });
   assert.equal(typeof autonomyPlan.details.ok, "boolean");
   assert.equal(autonomyPlan.details.steps.length >= 1, true);
+
+  const mutateCreature = tools.get("mutate_creature_appearance");
+  const creatureResult = await mutateCreature.execute("tool-call-4f", {
+    palette: "ocean",
+    eyes: "star",
+  });
+  assert.equal(creatureResult.details.success, true);
+  assert.equal(creatureResult.details.genome.palette, "ocean");
 
   await fs.rm(repoDir, { recursive: true, force: true });
 

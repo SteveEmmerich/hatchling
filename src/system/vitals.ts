@@ -3,6 +3,7 @@ import { checkHealth } from './health.js';
 import { execSync } from 'child_process';
 import fs from 'fs/promises';
 import { renderCreature } from './creature.js';
+import { loadGenome } from './creature-genome.js';
 
 async function readJsonOrDefault<T>(relativePath: string, fallback: T): Promise<T> {
   try {
@@ -65,6 +66,10 @@ export async function getVitals() {
     }
   } catch {}
 
+  const genome = await loadGenome(
+    root,
+    `${config.name || 'hatchling'}:${config.createdAt || root}`,
+  );
   const creature = renderCreature({
     seed: `${config.name || 'hatchling'}:${config.createdAt || root}`,
     commitCount,
@@ -75,6 +80,10 @@ export async function getVitals() {
     energyLevel,
     safeMode: Boolean(health.safeMode),
     lowEnergy: Boolean(heartbeat.lowEnergy),
+    palette: genome.palette,
+    body: genome.body,
+    eyes: genome.eyes,
+    accent: genome.accent,
   });
   const creatureBlock = creature.lines.map((line) => `   ${line}`).join('\n');
 

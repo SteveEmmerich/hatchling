@@ -1,6 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 import type { Identity } from "./identity-schema";
+import { defaultGenome } from "./creature-genome.js";
 
 /**
  * PATH: src/system/dna-generator.ts
@@ -120,6 +121,7 @@ export async function generateDNAFiles(
       null,
       2,
     ),
+    "creature_genome.json": JSON.stringify(defaultGenome(`${data.name}:${now}`), null, 2),
   };
 
   for (const [file, content] of Object.entries(dna)) {

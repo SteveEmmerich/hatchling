@@ -37,6 +37,8 @@ test("web --snapshot renders dashboard HTML for active instance", async () => {
   assert.match(web.stdout, /<!doctype html>/i);
   assert.match(web.stdout, /Dashboard/i);
   assert.match(web.stdout, /HATCHLING VITALS/i);
+  assert.match(web.stdout, /<svg/i);
+  assert.match(web.stdout, /@keyframes breath/i);
 
   await fs.rm(testHome, { recursive: true, force: true });
 });
@@ -76,6 +78,7 @@ test("web --snapshot tolerates legacy instances missing mutation state", async (
   assert.equal(web.status, 0, `${web.stdout}\n${web.stderr}`);
   assert.match(web.stdout, /<!doctype html>/i);
   assert.match(web.stdout, /Mutations Today:\s+0/i);
+  assert.match(web.stdout, /<svg/i);
 
   await fs.rm(testHome, { recursive: true, force: true });
 });

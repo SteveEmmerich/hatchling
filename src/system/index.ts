@@ -11,6 +11,7 @@ export * from './telemetry.js';
 export * from './quotas.js';
 export * from './vitals.js';
 export * from './creature.js';
+export * from './creature-genome.js';
 export * from './vector_memory.js';
 export * from './backup.js';
 export * from './share.js';

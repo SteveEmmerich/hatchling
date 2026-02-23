@@ -318,4 +318,56 @@ export default function (pi: ExtensionAPI) {
       };
     },
   });
+
+  pi.registerTool({
+    name: "mutate_creature_appearance",
+    label: "Mutate Creature Appearance",
+    description: "Safely mutate visual creature genome (palette/body/eyes/accent) without code changes.",
+    parameters: Type.Object({
+      palette: Type.Optional(Type.String({ description: "forest|sunset|ocean|ember" })),
+      body: Type.Optional(Type.String({ description: "round|square|spiky" })),
+      eyes: Type.Optional(Type.String({ description: "dot|wide|star|caret" })),
+      accent: Type.Optional(Type.String({ description: "stripe|spots|cheeks|none" })),
+      randomize: Type.Optional(Type.Boolean({ description: "Randomize all appearance traits" })),
+    }),
+    async execute(_toolCallId, params) {
+      const { mutateGenome } = await import("./system/creature-genome.js");
+      const config = JSON.parse(await fs.readFile(path.join(rootDir, "brain", "config.json"), "utf-8"));
+      const seed = `${config.name || "hatchling"}:${config.createdAt || rootDir}:${Date.now()}`;
+      const pick = <T,>(items: readonly T[]) => items[Math.floor(Math.random() * items.length)];
+
+      const patch = params.randomize
+        ? {
+            palette: pick(["forest", "sunset", "ocean", "ember"] as const),
+            body: pick(["round", "square", "spiky"] as const),
+            eyes: pick(["dot", "wide", "star", "caret"] as const),
+            accent: pick(["stripe", "spots", "cheeks", "none"] as const),
+          }
+        : {
+            ...(params.palette ? { palette: params.palette } : {}),
+            ...(params.body ? { body: params.body } : {}),
+            ...(params.eyes ? { eyes: params.eyes } : {}),
+            ...(params.accent ? { accent: params.accent } : {}),
+          };
+
+      if (Object.keys(patch).length === 0) {
+        return {
+          content: [{ type: "text", text: "❌ No appearance mutation provided." }],
+          details: { success: false, error: "no_patch", genome: {} },
+        };
+      }
+      try {
+        const next = await mutateGenome(rootDir, seed, patch as any);
+        return {
+          content: [{ type: "text", text: "✅ Creature appearance updated." }],
+          details: { success: true, error: "", genome: next },
+        };
+      } catch (error: any) {
+        return {
+          content: [{ type: "text", text: `❌ Appearance mutation failed: ${String(error.message || error)}` }],
+          details: { success: false, error: String(error.message || error), genome: {} },
+        };
+      }
+    },
+  });
 }

@@ -5,7 +5,7 @@ Last updated: 2026-02-22
 ## Verified Current State
 
 - Build: `npm run build` passes.
-- Tests: `npm test` passes (Node test harness, 49/49).
+- Tests: `npm test` passes (Node test harness, 50/50).
 - Runtime target: Node.js (Bun runtime APIs removed from `src/`).
 - Extension API: aligned with `@mariozechner/pi-coding-agent@0.52.12`.
 - Discovery mode: Hindbrain-first onboarding is the active path.
@@ -22,6 +22,7 @@ Last updated: 2026-02-22
 - Daemon mode: `start --daemon`, `start --daemonStatus`, and `start --stopDaemon` manage background runtime per instance.
 - Share kit: `hatchling share` creates portable bundle + manifest + quickstart artifacts.
 - Creature TUI flair: vitals include deterministic per-instance creature avatar, growth stage, and mood rendering.
+- Creature genome system: `brain/creature_genome.json` drives deterministic variation with safe mutation commands and animated web SVG composition.
 - Manual E2E:
   - `hatchling init` completes with degraded local discovery prompts when Hindbrain model init fails.
   - `hatchling start` resolves active instance path and launches the pi subprocess.

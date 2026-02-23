@@ -27,6 +27,10 @@ interface DoctorCheck {
   level: DoctorLevel;
   message: string;
 }
+const CREATURE_PALETTES = ["forest", "sunset", "ocean", "ember"] as const;
+const CREATURE_BODIES = ["round", "square", "spiky"] as const;
+const CREATURE_EYES = ["dot", "wide", "star", "caret"] as const;
+const CREATURE_ACCENTS = ["stripe", "spots", "cheeks", "none"] as const;
 
 interface DaemonState {
   pid: number;
@@ -1271,6 +1275,142 @@ const main = defineCommand({
             const { disableCapability } = await import("./system/capabilities.js");
             const state = await disableCapability(rootDir, String(args.name));
             clack.log.success(`Disabled ${String(args.name)} (${state.enabled ? "enabled" : "disabled"}).`);
+          },
+        }),
+      },
+    }),
+
+    creature: defineCommand({
+      meta: {
+        description: "Inspect or safely mutate hatchling visual genome",
+      },
+      subCommands: {
+        show: defineCommand({
+          meta: { description: "Show creature genome and rendered vitals block" },
+          args: {
+            json: {
+              type: "boolean",
+              default: false,
+              description: "Print machine-readable output",
+            },
+          },
+          async run({ args }) {
+            const activeInstance = await getActiveInstance();
+            if (!activeInstance) {
+              clack.log.error("No active instance found. Run 'hatchling init' first.");
+              process.exit(1);
+            }
+            const rootDir = getInstancePath(activeInstance);
+            const { loadGenome } = await import("./system/creature-genome.js");
+            const { getVitals } = await import("./system/vitals.js");
+            const { PathGuard } = await import("./system/pathGuard.js");
+            const config = JSON.parse(await readFile(join(rootDir, "brain", "config.json"), "utf-8"));
+            const seed = `${config.name || "hatchling"}:${config.createdAt || rootDir}`;
+            const genome = await loadGenome(rootDir, seed);
+            PathGuard.setRoot(rootDir);
+            const vitals = await getVitals();
+            if (args.json) {
+              console.log(JSON.stringify({ genome, vitals }, null, 2));
+            } else {
+              clack.log.message(`Genome: ${JSON.stringify(genome)}`);
+              clack.log.message(vitals);
+            }
+          },
+        }),
+        mutate: defineCommand({
+          meta: { description: "Mutate creature appearance (schema-validated)" },
+          args: {
+            palette: { type: "string", description: `One of: ${CREATURE_PALETTES.join(", ")}` },
+            body: { type: "string", description: `One of: ${CREATURE_BODIES.join(", ")}` },
+            eyes: { type: "string", description: `One of: ${CREATURE_EYES.join(", ")}` },
+            accent: { type: "string", description: `One of: ${CREATURE_ACCENTS.join(", ")}` },
+            json: { type: "boolean", default: false, description: "Print machine-readable output" },
+          },
+          async run({ args }) {
+            const activeInstance = await getActiveInstance();
+            if (!activeInstance) {
+              clack.log.error("No active instance found. Run 'hatchling init' first.");
+              process.exit(1);
+            }
+            const rootDir = getInstancePath(activeInstance);
+            const config = JSON.parse(await readFile(join(rootDir, "brain", "config.json"), "utf-8"));
+            const seed = `${config.name || "hatchling"}:${config.createdAt || rootDir}`;
+            const patch: Record<string, string> = {};
+            if (args.palette) {
+              const val = String(args.palette);
+              if (!CREATURE_PALETTES.includes(val as any)) {
+                clack.log.error(`Invalid palette '${val}'.`);
+                process.exit(1);
+              }
+              patch.palette = val;
+            }
+            if (args.body) {
+              const val = String(args.body);
+              if (!CREATURE_BODIES.includes(val as any)) {
+                clack.log.error(`Invalid body '${val}'.`);
+                process.exit(1);
+              }
+              patch.body = val;
+            }
+            if (args.eyes) {
+              const val = String(args.eyes);
+              if (!CREATURE_EYES.includes(val as any)) {
+                clack.log.error(`Invalid eyes '${val}'.`);
+                process.exit(1);
+              }
+              patch.eyes = val;
+            }
+            if (args.accent) {
+              const val = String(args.accent);
+              if (!CREATURE_ACCENTS.includes(val as any)) {
+                clack.log.error(`Invalid accent '${val}'.`);
+                process.exit(1);
+              }
+              patch.accent = val;
+            }
+            if (Object.keys(patch).length === 0) {
+              clack.log.error("No mutation provided. Use --palette/--body/--eyes/--accent.");
+              process.exit(1);
+            }
+            const { mutateGenome } = await import("./system/creature-genome.js");
+            const next = await mutateGenome(rootDir, seed, patch as any);
+            if (args.json) {
+              console.log(JSON.stringify({ ok: true, genome: next }, null, 2));
+            } else {
+              clack.log.success(`Creature genome mutated (count=${next.mutationCount}).`);
+              clack.log.info(JSON.stringify(next));
+            }
+          },
+        }),
+        randomize: defineCommand({
+          meta: { description: "Randomize creature appearance safely" },
+          args: {
+            json: { type: "boolean", default: false, description: "Print machine-readable output" },
+          },
+          async run({ args }) {
+            const activeInstance = await getActiveInstance();
+            if (!activeInstance) {
+              clack.log.error("No active instance found. Run 'hatchling init' first.");
+              process.exit(1);
+            }
+            const rootDir = getInstancePath(activeInstance);
+            const config = JSON.parse(await readFile(join(rootDir, "brain", "config.json"), "utf-8"));
+            const seed = `${config.name || "hatchling"}:${config.createdAt || rootDir}:${Date.now()}`;
+            const rng = (items: readonly string[]) => items[Math.floor(Math.random() * items.length)];
+            const patch = {
+              palette: rng(CREATURE_PALETTES),
+              body: rng(CREATURE_BODIES),
+              eyes: rng(CREATURE_EYES),
+              accent: rng(CREATURE_ACCENTS),
+            };
+            const { mutateGenome } = await import("./system/creature-genome.js");
+            const next = await mutateGenome(rootDir, seed, patch as any);
+            if (args.json) {
+              console.log(JSON.stringify({ ok: true, genome: next }, null, 2));
+            } else {
+              clack.log.success(`Creature genome randomized (count=${next.mutationCount}).`);
+              clack.log.info(JSON.stringify(next));
+            }
           },
         }),
       },

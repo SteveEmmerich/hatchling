@@ -78,6 +78,22 @@ hatchling doctor --json
 
 `/vitals` now includes a deterministic creature avatar with per-instance visual variation, growth stage, and mood state.
 
+### Creature Customization
+
+```bash
+# Inspect creature genome and current vitals rendering
+hatchling creature show
+hatchling creature show --json
+
+# Mutate appearance safely (schema-validated)
+hatchling creature mutate --palette sunset --body spiky --eyes star --accent cheeks
+
+# Randomize appearance traits
+hatchling creature randomize --json
+```
+
+Creature visuals are data-driven via `brain/creature_genome.json`. The web dashboard composes an animated SVG creature from this genome; terminal vitals render a deterministic ASCII form.
+
 ### Share Kit
 
 ```bash
