@@ -76,6 +76,19 @@ hatchling doctor
 hatchling doctor --json
 ```
 
+### Share Kit
+
+```bash
+# Create a portable share kit for the active instance
+hatchling share
+hatchling share --json
+```
+
+Share kit output is written under `memory/share-kits/share_<timestamp>/` and includes:
+- `<instance>.bundle` (git bundle snapshot)
+- `manifest.json`
+- `QUICKSTART.md`
+
 Doctor also validates channel consistency:
 - enabled channel capability must have a matching gateway limb
 - missing channel env vars are reported as warnings

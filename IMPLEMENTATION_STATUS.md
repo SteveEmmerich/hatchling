@@ -5,7 +5,7 @@ Last updated: 2026-02-22
 ## Verified Current State
 
 - Build: `npm run build` passes.
-- Tests: `npm test` passes (Node test harness, 45/45).
+- Tests: `npm test` passes (Node test harness, 46/46).
 - Runtime target: Node.js (Bun runtime APIs removed from `src/`).
 - Extension API: aligned with `@mariozechner/pi-coding-agent@0.52.12`.
 - Discovery mode: Hindbrain-first onboarding is the active path.
@@ -20,6 +20,7 @@ Last updated: 2026-02-22
 - Channel transport: `channel test-message` supports simulated or live provider API mode (`--live`).
 - Channel runtime loop: `channel run <telegram|whatsapp>` provides a dedicated live chat loop separate from maintenance.
 - Daemon mode: `start --daemon`, `start --daemonStatus`, and `start --stopDaemon` manage background runtime per instance.
+- Share kit: `hatchling share` creates portable bundle + manifest + quickstart artifacts.
 - Manual E2E:
   - `hatchling init` completes with degraded local discovery prompts when Hindbrain model init fails.
   - `hatchling start` resolves active instance path and launches the pi subprocess.
@@ -30,6 +31,7 @@ Last updated: 2026-02-22
   - `init`, `start`, `use`, `list`, `delete`
 - Operational commands:
   - `doctor`, `maintain`, `web`, `mcp`, `capability`, `channel`, `config`, `evolve`, `autonomy`, `rollback`
+  - `share`
 - Onboarding + identity generation:
   - `src/system/discovery.ts`
   - `src/system/hindbrain-discovery.ts`

@@ -12,6 +12,7 @@ export * from './quotas.js';
 export * from './vitals.js';
 export * from './vector_memory.js';
 export * from './backup.js';
+export * from './share.js';
 export * from './feedback.js';
 export * from './debug.js';
 export * from './skills.js';

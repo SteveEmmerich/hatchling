@@ -1559,6 +1559,50 @@ const main = defineCommand({
       },
     }),
 
+    share: defineCommand({
+      meta: {
+        description: "Create a portable share kit for the active instance",
+      },
+      args: {
+        json: {
+          type: "boolean",
+          default: false,
+          description: "Print machine-readable output",
+        },
+      },
+      async run({ args }) {
+        const activeInstance = await getActiveInstance();
+        if (!activeInstance) {
+          clack.log.error("No active instance found. Run 'hatchling init' first.");
+          process.exit(1);
+        }
+        const instancePath = getInstancePath(activeInstance);
+        if (!existsSync(instancePath)) {
+          clack.log.error(`Active instance path does not exist: ${instancePath}`);
+          process.exit(1);
+        }
+        const { createShareKit } = await import("./system/share.js");
+        try {
+          const result = await createShareKit(instancePath, activeInstance);
+          if (args.json) {
+            console.log(JSON.stringify(result, null, 2));
+          } else {
+            clack.log.success(`Share kit created for ${activeInstance}`);
+            clack.log.info(`Kit: ${result.kitDir}`);
+            clack.log.info(`Bundle: ${result.bundlePath}`);
+            clack.log.info(`Quickstart: ${result.quickstartPath}`);
+          }
+        } catch (error: any) {
+          if (args.json) {
+            console.log(JSON.stringify({ ok: false, error: String(error.message || error) }, null, 2));
+          } else {
+            clack.log.error(String(error.message || error));
+          }
+          process.exit(1);
+        }
+      },
+    }),
+
     web: defineCommand({
       meta: {
         description: "Run local web dashboard for the active instance",
