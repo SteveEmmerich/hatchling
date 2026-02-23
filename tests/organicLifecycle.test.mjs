@@ -43,6 +43,7 @@ test("organic lifecycle supports feedback, vitals, and sleep cycle", async () =>
 
   const vitals = await getVitals();
   assert.match(vitals, /HATCHLING VITALS/);
+  assert.match(vitals, /Creature:/);
   assert.match(vitals, /Mutations Today/);
 
   await sleep();

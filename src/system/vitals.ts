@@ -2,6 +2,7 @@ import { PathGuard } from './pathGuard.js';
 import { checkHealth } from './health.js';
 import { execSync } from 'child_process';
 import fs from 'fs/promises';
+import { renderCreature } from './creature.js';
 
 async function readJsonOrDefault<T>(relativePath: string, fallback: T): Promise<T> {
   try {
@@ -28,6 +29,7 @@ export async function getVitals() {
     mutationsToday: 0,
     totalMutations: 0,
     successfulMutations: 0,
+    sleepCycles: 0,
   });
   const successRatio = mutationState.totalMutations > 0
     ? ((mutationState.successfulMutations / mutationState.totalMutations) * 100).toFixed(1)
@@ -40,21 +42,47 @@ export async function getVitals() {
   });
   const tokenUsagePercent = (quotas.tokens.today / quotas.tokens.maxPerDay) * 100;
   const energyLevel = tokenUsagePercent > 90 ? 'Critical' : tokenUsagePercent > 70 ? 'Low' : 'High';
+  const heartbeat = await readJsonOrDefault('brain/heartbeat.json', {
+    lowEnergy: false,
+  });
+  const curiosity = await readJsonOrDefault('brain/curiosity_state.json', {
+    adjustedCuriosity: 5,
+  });
+  const config = await readJsonOrDefault('brain/config.json', {
+    name: 'hatchling',
+    createdAt: '',
+  });
 
   // 5. Daemon (Ghost Pulse)
   let daemonStatus = 'Offline';
   try {
-    const pidPath = await PathGuard.validatePath('brain/daemon.pid', 'read');
-    const pid = await fs.readFile(pidPath, 'utf-8');
-    const check = execSync(`kill -0 ${pid.trim()}`, { encoding: 'utf-8' });
-    if (check) {
-      daemonStatus = `Running (PID: ${pid.trim()})`;
+    const daemonStatePath = await PathGuard.validatePath('brain/daemon_state.json', 'read');
+    const daemonState = JSON.parse(await fs.readFile(daemonStatePath, 'utf-8'));
+    const pid = Number(daemonState.pid || 0);
+    if (pid > 0) {
+      execSync(`kill -0 ${pid}`, { encoding: 'utf-8' });
+      daemonStatus = `Running (PID: ${pid})`;
     }
   } catch {}
+
+  const creature = renderCreature({
+    seed: `${config.name || 'hatchling'}:${config.createdAt || root}`,
+    commitCount,
+    sleepCycles: Number(mutationState.sleepCycles || 0),
+    successfulMutations: Number(mutationState.successfulMutations || 0),
+    totalMutations: Number(mutationState.totalMutations || 0),
+    curiosity: Number(curiosity.adjustedCuriosity || 5),
+    energyLevel,
+    safeMode: Boolean(health.safeMode),
+    lowEnergy: Boolean(heartbeat.lowEnergy),
+  });
+  const creatureBlock = creature.lines.map((line) => `   ${line}`).join('\n');
 
   return `
 ❤️  HATCHLING VITALS
 ====================
+🧸 Creature:         ${creature.stage} (${creature.mood}) ${creature.variantId}
+${creatureBlock}
 🧬 Genetic Age:      ${commitCount} commits
 🦠 Mutations Today:  ${mutationState.mutationsToday} / 5 (Daily)
 🧪 Success Rate:     ${successRatio}%

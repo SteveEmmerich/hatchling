@@ -76,6 +76,8 @@ hatchling doctor
 hatchling doctor --json
 ```
 
+`/vitals` now includes a deterministic creature avatar with per-instance visual variation, growth stage, and mood state.
+
 ### Share Kit
 
 ```bash
