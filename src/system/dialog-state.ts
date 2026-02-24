@@ -16,12 +16,23 @@ export interface DialogSession {
   objectiveSummary: string;
   openQuestion?: string;
   recentMessages: string[];
+  objectives: DialogObjective[];
   thread: {
+    objectiveId?: string;
     objective: string;
     stage: "scoping" | "planning" | "executing" | "verifying" | "completed";
     nextStep: string;
     completedAt?: string;
   };
+}
+
+export interface DialogObjective {
+  id: string;
+  text: string;
+  status: "pending" | "active" | "completed";
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string;
 }
 
 export interface DialogState {
@@ -35,6 +46,9 @@ export interface DialogTurnPlan {
   objectiveSummary: string;
   progressLabel: string;
   nextStep: string;
+  activeObjective: string;
+  pendingObjectives: number;
+  completedObjectives: number;
 }
 
 function dialogStatePath(rootDir: string): string {
@@ -89,6 +103,60 @@ function shouldAskFollowUp(routeName: string, text: string, hasOpenQuestion: boo
   return /\bhelp\b|\bdo it\b|\bfix\b|\bstart\b|\bgo\b|\bok\b|\byes\b/.test(lower);
 }
 
+function objectiveId(seed: string): string {
+  const normalized = seed.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  return `obj_${normalized.slice(0, 24)}_${Math.random().toString(36).slice(2, 6)}`;
+}
+
+function splitObjectiveCandidates(text: string): string[] {
+  return text
+    .split(/\bthen\b|->|[;\n]+/gi)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .slice(0, 5);
+}
+
+function shouldCreateObjective(candidate: string): boolean {
+  if (candidate.length < 12) return false;
+  return /\b(build|create|add|implement|fix|setup|configure|test|verify|deploy|update)\b/i.test(candidate);
+}
+
+function mergeObjectives(
+  existing: DialogObjective[],
+  newCandidates: string[],
+  now: string,
+): DialogObjective[] {
+  const next = [...existing];
+  for (const candidate of newCandidates) {
+    if (!shouldCreateObjective(candidate)) continue;
+    const key = candidate.toLowerCase().replace(/\s+/g, " ").trim();
+    const exists = next.some((objective) => objective.text.toLowerCase() === key);
+    if (exists) continue;
+    next.push({
+      id: objectiveId(candidate),
+      text: candidate,
+      status: "pending",
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+  return next.slice(-20);
+}
+
+function normalizeObjectiveStatuses(objectives: DialogObjective[]): DialogObjective[] {
+  const completed = objectives.filter((objective) => objective.status === "completed");
+  const remaining = objectives.filter((objective) => objective.status !== "completed");
+  let activated = false;
+  const normalized = remaining.map((objective) => {
+    if (!activated && (objective.status === "active" || objective.status === "pending")) {
+      activated = true;
+      return { ...objective, status: "active" as const };
+    }
+    return { ...objective, status: "pending" as const };
+  });
+  return [...completed, ...normalized];
+}
+
 export async function loadDialogState(rootDir: string): Promise<DialogState> {
   const target = dialogStatePath(rootDir);
   if (!existsSync(target)) return { version: 1, sessions: {} };
@@ -131,6 +199,7 @@ export async function planDialogTurn(
           stage: "scoping",
           nextStep: "clarify success criteria and target files",
         },
+        objectives: Array.isArray(existing.objectives) ? existing.objectives : [],
       }
     : {
         id: key,
@@ -142,6 +211,7 @@ export async function planDialogTurn(
         lastIntent: intent,
         objectiveSummary: "",
         recentMessages: [],
+        objectives: [],
         thread: {
           objective: "",
           stage: "scoping",
@@ -152,7 +222,19 @@ export async function planDialogTurn(
   session.lastIntent = intent;
   session.objectiveSummary = inferObjectiveSummary(inboundText, session.objectiveSummary);
   session.recentMessages = [...(session.recentMessages || []), inboundText.trim()].filter(Boolean).slice(-12);
-  session.thread.objective = session.objectiveSummary;
+  session.objectives = mergeObjectives(session.objectives || [], splitObjectiveCandidates(inboundText), now);
+  if (/\bdone\b|\bcompleted\b|\bfixed\b|\bshipped\b/i.test(inboundText)) {
+    const active = (session.objectives || []).find((objective) => objective.status === "active");
+    if (active) {
+      active.status = "completed";
+      active.updatedAt = now;
+      active.completedAt = now;
+    }
+  }
+  session.objectives = normalizeObjectiveStatuses(session.objectives || []);
+  const activeObjective = (session.objectives || []).find((objective) => objective.status === "active");
+  session.thread.objectiveId = activeObjective?.id;
+  session.thread.objective = activeObjective?.text || session.objectiveSummary;
   session.thread.stage = inferStage(inboundText, session.thread.stage || "scoping");
   session.thread.nextStep = inferNextStep(session.thread.stage, session.objectiveSummary);
   if (session.thread.stage === "completed" && !session.thread.completedAt) {
@@ -179,5 +261,8 @@ export async function planDialogTurn(
     objectiveSummary: session.objectiveSummary,
     progressLabel: session.thread.stage,
     nextStep: session.thread.nextStep,
+    activeObjective: session.thread.objective,
+    pendingObjectives: (session.objectives || []).filter((objective) => objective.status === "pending").length,
+    completedObjectives: (session.objectives || []).filter((objective) => objective.status === "completed").length,
   };
 }

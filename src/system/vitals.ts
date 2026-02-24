@@ -5,6 +5,7 @@ import fs from 'fs/promises';
 import { renderCreature } from './creature.js';
 import { loadGenome } from './creature-genome.js';
 import { loadPersonalityState } from './personality-adaptation.js';
+import { summarizeCreatureEvents } from './creature-events.js';
 
 async function readJsonOrDefault<T>(relativePath: string, fallback: T): Promise<T> {
   try {
@@ -78,6 +79,8 @@ export async function getVitals() {
   const socialUsers = Object.values(socialMemory.users || {});
   const trustedBonds = socialUsers.filter((u) => String(u.relationshipStage || '') === 'trusted').length;
   const familiarBonds = socialUsers.filter((u) => String(u.relationshipStage || '') === 'familiar').length;
+  const creatureEvents = await summarizeCreatureEvents(root);
+  const recentEventsLabel = creatureEvents.recentTypes.slice(-4).join(", ") || "none";
   const personalityLabel = [
     ...personality.baseTraits.slice(0, 3),
     ...personality.adaptiveTraits.slice(0, 2),
@@ -109,6 +112,7 @@ ${creatureBlock}
 🧪 Success Rate:     ${successRatio}%
 🧠 Personality:      ${personalityLabel || "curious"}
 🤝 Social Bonds:     trusted=${trustedBonds} familiar=${familiarBonds}
+🎮 Creature Events:  total=${creatureEvents.total} recent=${recentEventsLabel}
 ⚡ Metabolism:       ${energyLevel} (${tokenUsagePercent.toFixed(1)}% Token Usage)
 🏥 Biological Integrity: ${health.safeMode ? '⚠️ SAFE MODE' : '✅ Healthy'}
 👻 Ghost Pulse:      ${daemonStatus}

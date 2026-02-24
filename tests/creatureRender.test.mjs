@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { renderCreature } from "../dist/system/creature.js";
+import { renderCreature, renderCreatureAnimationFrames } from "../dist/system/creature.js";
 
 test("creature render is deterministic for same seed and signals", () => {
   const input = {
@@ -66,4 +66,21 @@ test("creature mood responds to safe mode and low energy", () => {
     lowEnergy: true,
   });
   assert.equal(sleepy.mood, "sleepy");
+});
+
+test("creature animation uses recent event hints for richer behavior", () => {
+  const creature = renderCreature({
+    seed: "a",
+    commitCount: 8,
+    sleepCycles: 1,
+    successfulMutations: 3,
+    totalMutations: 4,
+    curiosity: 7,
+    energyLevel: "High",
+    safeMode: false,
+    lowEnergy: false,
+  });
+  const frames = renderCreatureAnimationFrames(creature, 4, ["objective_complete"]);
+  assert.equal(frames.length, 4);
+  assert.equal(frames.some((frame) => frame.lines.join("\n").includes("objective complete")), true);
 });

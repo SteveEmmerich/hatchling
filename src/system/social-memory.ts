@@ -14,12 +14,16 @@ export interface SocialUserProfile {
   inferredTone: "friendly" | "direct" | "urgent";
   trustScore: number;
   relationshipStage: "new" | "familiar" | "trusted";
+  relationshipArc: "onboarding" | "building" | "collaborating" | "reliant" | "strained" | "repairing";
   positiveSignals: number;
   negativeSignals: number;
+  consecutivePositive: number;
+  consecutiveNegative: number;
   preferences: {
     verbosity: "brief" | "balanced" | "detailed";
     pace: "normal" | "fast";
   };
+  arcMilestones: Array<{ at: string; arc: string; reason: string }>;
   notes: string[];
 }
 
@@ -50,6 +54,21 @@ function relationshipStageFor(interactions: number, trustScore: number): "new" |
   if (interactions >= 8 || trustScore >= 70) return "trusted";
   if (interactions >= 3 || trustScore >= 55) return "familiar";
   return "new";
+}
+
+function relationshipArcFor(profile: {
+  interactions: number;
+  trustScore: number;
+  consecutivePositive: number;
+  consecutiveNegative: number;
+  previousArc?: SocialUserProfile["relationshipArc"];
+}): SocialUserProfile["relationshipArc"] {
+  if (profile.consecutiveNegative >= 3) return "strained";
+  if (profile.previousArc === "strained" && profile.consecutivePositive >= 2) return "repairing";
+  if (profile.interactions >= 20 && profile.trustScore >= 75) return "reliant";
+  if (profile.interactions >= 10 && profile.trustScore >= 65) return "collaborating";
+  if (profile.interactions >= 4 && profile.trustScore >= 55) return "building";
+  return "onboarding";
 }
 
 function inferPreferences(
@@ -97,6 +116,8 @@ export async function updateSocialMemory(
   const tone = inferTone(text);
   const sentiment = sentimentSignal(text);
   const existing = state.users[key];
+  const nextPositive = sentiment > 0 ? Number(existing?.consecutivePositive || 0) + 1 : 0;
+  const nextNegative = sentiment < 0 ? Number(existing?.consecutiveNegative || 0) + 1 : 0;
   const next: SocialUserProfile = existing
     ? {
         ...existing,
@@ -107,6 +128,8 @@ export async function updateSocialMemory(
         trustScore: Math.max(0, Math.min(100, Number(existing.trustScore || 50) + sentiment * 4 + 1)),
         positiveSignals: Number(existing.positiveSignals || 0) + (sentiment > 0 ? 1 : 0),
         negativeSignals: Number(existing.negativeSignals || 0) + (sentiment < 0 ? 1 : 0),
+        consecutivePositive: nextPositive,
+        consecutiveNegative: nextNegative,
         preferences: inferPreferences(text, existing.preferences),
       }
     : {
@@ -118,13 +141,35 @@ export async function updateSocialMemory(
         inferredTone: tone,
         trustScore: Math.max(0, Math.min(100, 50 + sentiment * 4)),
         relationshipStage: "new",
+        relationshipArc: "onboarding",
         positiveSignals: sentiment > 0 ? 1 : 0,
         negativeSignals: sentiment < 0 ? 1 : 0,
+        consecutivePositive: nextPositive,
+        consecutiveNegative: nextNegative,
         preferences: inferPreferences(text, undefined),
+        arcMilestones: [],
         notes: [],
       };
 
   next.relationshipStage = relationshipStageFor(next.interactions, next.trustScore);
+  const newArc = relationshipArcFor({
+    interactions: next.interactions,
+    trustScore: next.trustScore,
+    consecutivePositive: next.consecutivePositive,
+    consecutiveNegative: next.consecutiveNegative,
+    previousArc: next.relationshipArc,
+  });
+  if (newArc !== next.relationshipArc) {
+    next.arcMilestones = [
+      ...(next.arcMilestones || []),
+      {
+        at: now,
+        arc: newArc,
+        reason: `signals(+${next.consecutivePositive}/-${next.consecutiveNegative}) trust=${next.trustScore}`,
+      },
+    ].slice(-25);
+    next.relationshipArc = newArc;
+  }
 
   if (text.length <= 120 && /prefer|like|don't like|do not like|always|never/i.test(text)) {
     const trimmed = text.trim();

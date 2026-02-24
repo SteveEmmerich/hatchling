@@ -7,6 +7,7 @@ import { renderCreature, renderCreatureSvg } from "./creature.js";
 import { loadGenome } from "./creature-genome.js";
 import { checkHealth } from "./health.js";
 import { execSync } from "child_process";
+import { summarizeCreatureEvents } from "./creature-events.js";
 
 function escapeHtml(input: string): string {
   return input
@@ -40,6 +41,8 @@ export async function renderWebDashboard(rootDir: string): Promise<string> {
       .pet { background: linear-gradient(180deg, #ffffff, #f5faf5); border: 1px solid #d8e7de; border-radius: 12px; padding: 0.5rem; }
       .chips { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.25rem 0 1rem; }
       .chip { background: #eef6ff; border: 1px solid #cde0ff; color: #1f3d68; border-radius: 999px; padding: 0.2rem 0.6rem; font-size: 0.78rem; font-weight: 600; }
+      .chip.activity { animation: pulse-chip 1.8s ease-in-out infinite; }
+      @keyframes pulse-chip { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
       h1 { margin: 0 0 0.5rem; font-size: 1.9rem; letter-spacing: -0.015em; }
       .muted { color: #4b5563; margin-bottom: 1.25rem; }
       pre { margin: 0; overflow: auto; background: #0b1220; color: #dbeafe; border-radius: 12px; padding: 1rem; font-size: 0.9rem; line-height: 1.35; }
@@ -133,15 +136,20 @@ async function renderCreatureStatusChips(rootDir: string): Promise<string> {
   const strategy = await readJsonOrDefault("brain/autonomy_strategy.json", {
     goals: [],
   } as { goals: Array<{ status?: string }> });
+  const events = await summarizeCreatureEvents(rootDir);
   const trusted = Object.values(social.users || {}).filter((u) => String(u.relationshipStage || "") === "trusted").length;
   const familiar = Object.values(social.users || {}).filter((u) => String(u.relationshipStage || "") === "familiar").length;
   const pendingGoals = (strategy.goals || []).filter((goal) => String(goal.status || "") === "pending").length;
   const chips = [
-    `trusted bonds: ${trusted}`,
-    `familiar bonds: ${familiar}`,
-    `pending goals: ${pendingGoals}`,
+    { text: `trusted bonds: ${trusted}`, activity: false },
+    { text: `familiar bonds: ${familiar}`, activity: false },
+    { text: `pending goals: ${pendingGoals}`, activity: false },
+    { text: `creature events: ${events.total}`, activity: true },
+    { text: `recent event: ${events.recentTypes.slice(-1)[0] || "none"}`, activity: true },
   ];
-  return chips.map((value) => `<span class="chip">${escapeHtml(value)}</span>`).join("");
+  return chips
+    .map((value) => `<span class="chip${value.activity ? " activity" : ""}">${escapeHtml(value.text)}</span>`)
+    .join("");
 }
 
 export async function startWebDashboard(rootDir: string, port: number): Promise<http.Server> {

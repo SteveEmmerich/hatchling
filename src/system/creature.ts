@@ -172,15 +172,21 @@ function shiftLines(lines: string[], spaces: number): string[] {
 export function renderCreatureAnimationFrames(
   creature: CreatureRender,
   frameCount = 8,
+  eventHints: string[] = [],
 ): CreatureAnimationFrame[] {
   const count = Math.max(1, Math.floor(frameCount));
+  const hints = eventHints.map((hint) => hint.toLowerCase());
   const frames: CreatureAnimationFrame[] = [];
   for (let i = 0; i < count; i += 1) {
     const bob = i % 4 === 2 ? 1 : 0;
     const shouldBlink = creature.mood !== "sick" && i % 6 === 3;
     const base = shouldBlink ? blinkLines(creature.lines) : creature.lines;
     const moodLine =
-      creature.mood === "playful"
+      hints.includes("objective_complete")
+        ? i % 2 === 0 ? "  ✓ objective complete" : "  ↺ selecting next"
+        : hints.includes("social_ping")
+          ? i % 2 === 0 ? "  ✦ social ping ✦" : "  ✧ listening ✧"
+          : creature.mood === "playful"
         ? i % 2 === 0 ? "  ~ wiggle ~" : "  ~ zoom ~"
         : creature.mood === "sleepy"
           ? "  z z z"

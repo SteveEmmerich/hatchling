@@ -65,8 +65,7 @@ Last updated: 2026-02-22
 1. Conversational runtime UX depth
 - Identity onboarding is now conversational-first with narrative inference plus iterative revision.
 - Feedback-driven personality adaptation over time is implemented with persisted signals + adaptive traits.
-- Social memory persistence for recurring users is implemented with trust/stage progression, preference hints, and response-tone influence.
-- Still needed: richer relationship-arc behaviors over longer horizons.
+- Social memory persistence for recurring users is implemented with trust/stage progression, relationship-arc tracking, preference hints, and response-tone influence.
 
 2. Real transport adapters
 - Telegram/WhatsApp bootstrap, validation, and dedicated runtime loops are implemented.
@@ -74,8 +73,7 @@ Last updated: 2026-02-22
 - WhatsApp production webhook ingress now captures and verifies inbound events and feeds the runtime queue.
 - Rule-based channel routing/response policy is implemented and configurable per instance.
 - Model-driven response rewrite layer is implemented for configured providers (with safe fallback when unavailable).
-- Dialog planning now tracks multi-turn context, objective thread stage, and next-step guidance.
-- Still needed: richer multi-objective orchestration depth for complex long-running conversations.
+- Dialog planning now tracks multi-turn context, objective threads, stage progression, and next-step guidance with queued objective visibility.
 
 3. Autonomous long-horizon planning
 - Bounded autonomy loop is implemented with approval guards and run logs.

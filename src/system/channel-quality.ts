@@ -52,6 +52,15 @@ function fallbackQualityReply(context: ChannelReplyContext): string {
   if (context.socialProfile?.relationshipStage === "trusted") {
     response = `Welcome back. ${response}`;
   }
+  if (context.socialProfile?.relationshipArc === "strained") {
+    response = `Let us stabilize this together. ${response}`;
+  }
+  if (context.socialProfile?.relationshipArc === "repairing") {
+    response = `We are back on track. ${response}`;
+  }
+  if (context.socialProfile?.relationshipArc === "reliant") {
+    response = `Continuing from our long-term workflow. ${response}`;
+  }
   if (context.socialProfile?.inferredTone === "friendly" && interactions > 1) {
     response = `Good to hear from you again. ${response}`;
   }
@@ -63,6 +72,9 @@ function fallbackQualityReply(context: ChannelReplyContext): string {
   }
   if (context.dialogPlan?.nextStep && !response.includes("Next:")) {
     response = `${response} Next: ${context.dialogPlan.nextStep}.`;
+  }
+  if ((context.dialogPlan?.pendingObjectives || 0) > 0 && !response.includes("Queue:")) {
+    response = `${response} Queue: ${context.dialogPlan?.pendingObjectives} pending objective(s).`;
   }
   if (context.dialogPlan?.progressLabel && !response.includes("Progress:")) {
     response = `Progress: ${context.dialogPlan.progressLabel}. ${response}`;
@@ -107,12 +119,16 @@ async function tryOpenAIReply(
             `BaseReply: ${context.baseReply}`,
             `ToneHint: ${context.socialProfile?.inferredTone || "direct"}`,
             `Relationship: ${context.socialProfile?.relationshipStage || "new"} (trust=${context.socialProfile?.trustScore ?? 50})`,
+            `RelationshipArc: ${context.socialProfile?.relationshipArc || "onboarding"}`,
             `Preferences: verbosity=${context.socialProfile?.preferences?.verbosity || "balanced"}, pace=${context.socialProfile?.preferences?.pace || "normal"}`,
             `RecentHistory: ${(context.recentHistory || []).slice(-4).join(" | ") || "none"}`,
             `DialogIntent: ${context.dialogPlan?.session.lastIntent || "general"}`,
             `ObjectiveSummary: ${context.dialogPlan?.objectiveSummary || "none"}`,
+            `ActiveObjective: ${context.dialogPlan?.activeObjective || "none"}`,
             `Progress: ${context.dialogPlan?.progressLabel || "scoping"}`,
             `NextStep: ${context.dialogPlan?.nextStep || "none"}`,
+            `PendingObjectives: ${context.dialogPlan?.pendingObjectives ?? 0}`,
+            `CompletedObjectives: ${context.dialogPlan?.completedObjectives ?? 0}`,
             `FollowUpQuestion: ${context.dialogPlan?.followUpQuestion || "none"}`,
           ].join("\n"),
         },
@@ -155,12 +171,16 @@ async function tryAnthropicReply(
             `BaseReply: ${context.baseReply}`,
             `ToneHint: ${context.socialProfile?.inferredTone || "direct"}`,
             `Relationship: ${context.socialProfile?.relationshipStage || "new"} (trust=${context.socialProfile?.trustScore ?? 50})`,
+            `RelationshipArc: ${context.socialProfile?.relationshipArc || "onboarding"}`,
             `Preferences: verbosity=${context.socialProfile?.preferences?.verbosity || "balanced"}, pace=${context.socialProfile?.preferences?.pace || "normal"}`,
             `RecentHistory: ${(context.recentHistory || []).slice(-4).join(" | ") || "none"}`,
             `DialogIntent: ${context.dialogPlan?.session.lastIntent || "general"}`,
             `ObjectiveSummary: ${context.dialogPlan?.objectiveSummary || "none"}`,
+            `ActiveObjective: ${context.dialogPlan?.activeObjective || "none"}`,
             `Progress: ${context.dialogPlan?.progressLabel || "scoping"}`,
             `NextStep: ${context.dialogPlan?.nextStep || "none"}`,
+            `PendingObjectives: ${context.dialogPlan?.pendingObjectives ?? 0}`,
+            `CompletedObjectives: ${context.dialogPlan?.completedObjectives ?? 0}`,
             `FollowUpQuestion: ${context.dialogPlan?.followUpQuestion || "none"}`,
           ].join("\n"),
         },

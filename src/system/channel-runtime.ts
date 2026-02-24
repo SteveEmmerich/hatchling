@@ -10,6 +10,7 @@ import { loadPersonalityState, styleReplyForPersonality } from "./personality-ad
 import { updateSocialMemory } from "./social-memory.js";
 import { generateQualityReply } from "./channel-quality.js";
 import { planDialogTurn } from "./dialog-state.js";
+import { recordCreatureEvent } from "./creature-events.js";
 
 type LoopHandle = {
   timer: NodeJS.Timeout;
@@ -201,6 +202,7 @@ async function runTelegramTick(
       receivedAt: new Date().toISOString(),
     });
     const profile = await updateSocialMemory(rootDir, "telegram", String(message?.from?.id || chatId), text);
+    await recordCreatureEvent(rootDir, "social_ping", "telegram message ingested");
     const decision = evaluateChannelPolicy("telegram", text, String(message?.from?.id || chatId), policy, new Date());
     await appendRoutingDecision(rootDir, "telegram", {
       ...decision,
@@ -217,6 +219,11 @@ async function runTelegramTick(
         String(message?.from?.id || chatId),
         text,
         decision.routeName,
+      );
+      await recordCreatureEvent(
+        rootDir,
+        dialogPlan.progressLabel === "completed" ? "objective_complete" : "objective_progress",
+        `telegram:${dialogPlan.progressLabel}`,
       );
       const quality = await generateQualityReply(
         rootDir,
@@ -323,6 +330,7 @@ async function runWhatsAppTick(
         receivedAt: new Date().toISOString(),
       });
       const profile = await updateSocialMemory(rootDir, "whatsapp", event.from, event.text);
+      await recordCreatureEvent(rootDir, "social_ping", "whatsapp message ingested");
       const decision = evaluateChannelPolicy("whatsapp", event.text, event.from, policy, new Date());
       await appendRoutingDecision(rootDir, "whatsapp", {
         ...decision,
@@ -333,6 +341,11 @@ async function runWhatsAppTick(
         const styledReply = styleReplyForPersonality(decision.responseText, personality);
         const recentHistory = await readRecentSenderHistory(rootDir, "whatsapp", event.from, 5);
         const dialogPlan = await planDialogTurn(rootDir, "whatsapp", event.from, event.text, decision.routeName);
+        await recordCreatureEvent(
+          rootDir,
+          dialogPlan.progressLabel === "completed" ? "objective_complete" : "objective_progress",
+          `whatsapp:${dialogPlan.progressLabel}`,
+        );
         const quality = await generateQualityReply(
           rootDir,
           {

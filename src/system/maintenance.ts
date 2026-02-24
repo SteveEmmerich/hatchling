@@ -4,6 +4,7 @@ import { PathGuard } from "./pathGuard.js";
 import { QuotaManager } from "./quotas.js";
 import { sleep } from "./sleep.js";
 import { Telemetry } from "./telemetry.js";
+import { recordCreatureEvent } from "./creature-events.js";
 
 export interface MaintenanceReport {
   timestamp: string;
@@ -129,6 +130,7 @@ export async function runMaintenanceTick(
     stagingTrimmed,
   };
   await Telemetry.log("pulse", "Maintenance tick completed", report);
+  await recordCreatureEvent(rootDir, "maintenance", `lowEnergy=${lowEnergy} autoSleep=${autoSleepTriggered}`);
   return report;
 }
 
@@ -145,11 +147,13 @@ export async function startMaintenanceLoop(
 
   await runMaintenanceTick(rootDir).catch(async (error) => {
     await Telemetry.warn(`Maintenance bootstrap tick failed: ${String(error)}`);
+    await recordCreatureEvent(rootDir, "error", `maintenance bootstrap: ${String(error)}`);
   });
 
   const timer = setInterval(() => {
     runMaintenanceTick(rootDir).catch(async (error) => {
       await Telemetry.warn(`Maintenance tick failed: ${String(error)}`);
+      await recordCreatureEvent(rootDir, "error", `maintenance tick: ${String(error)}`);
     });
   }, resolvedInterval);
   loopHandles.set(rootDir, { timer });

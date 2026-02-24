@@ -21,6 +21,8 @@ test("social memory tracks recurring users and inferred tone", async () => {
   assert.equal(state.users["telegram:777"].relationshipStage === "new" || state.users["telegram:777"].relationshipStage === "familiar" || state.users["telegram:777"].relationshipStage === "trusted", true);
   assert.equal(state.users["telegram:777"].preferences.verbosity, "brief");
   assert.equal(state.users["telegram:777"].preferences.pace, "fast");
+  assert.equal(typeof state.users["telegram:777"].relationshipArc, "string");
+  assert.equal(Array.isArray(state.users["telegram:777"].arcMilestones), true);
 
   const filePath = path.join(testRoot, "brain", "social_memory.json");
   const persisted = JSON.parse(await fs.readFile(filePath, "utf-8"));

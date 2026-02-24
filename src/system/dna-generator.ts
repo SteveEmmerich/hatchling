@@ -177,6 +177,7 @@ export async function generateDNAFiles(
       2,
     ),
     "creature_genome.json": JSON.stringify(defaultGenome(`${data.name}:${now}`), null, 2),
+    "creature_events.json": JSON.stringify({ events: [] }, null, 2),
   };
 
   for (const [file, content] of Object.entries(dna)) {

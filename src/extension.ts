@@ -97,6 +97,7 @@ export default function (pi: ExtensionAPI) {
       const { PathGuard } = await import("./system/pathGuard.js");
       const { renderCreature, renderCreatureAnimationFrames } = await import("./system/creature.js");
       const { loadGenome } = await import("./system/creature-genome.js");
+      const { summarizeCreatureEvents } = await import("./system/creature-events.js");
       const { checkHealth } = await import("./system/health.js");
       PathGuard.setRoot(rootDir);
 
@@ -138,8 +139,9 @@ export default function (pi: ExtensionAPI) {
         eyes: genome.eyes,
         accent: genome.accent,
       });
+      const creatureEvents = await summarizeCreatureEvents(rootDir);
 
-      const animationFrames = renderCreatureAnimationFrames(creature, frames);
+      const animationFrames = renderCreatureAnimationFrames(creature, frames, creatureEvents.recentTypes);
       for (const frame of animationFrames) {
         ctx.ui.notify(
           [`🧸 ${creature.stage} (${creature.mood}) ${creature.variantId}`, ...frame.lines].join("\n"),
