@@ -294,6 +294,7 @@ hatchling pilot snapshot --strict --json
 ```
 
 For operational rollout guidance, see `PILOT_GUIDE.md`.
+For a copy/paste operator flow, see `PILOT_QUICKSTART.md`.
 
 ### Directory Structure
 
