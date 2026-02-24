@@ -265,6 +265,21 @@ Inbound messages are routed through `brain/channel_policy.json` and decision log
 Feedback continuously shapes `brain/personality_state.json`, and channel auto-replies adapt tone from this evolving state.
 Autonomy runs now also synthesize strategic self-goals from local state and merge them with user-requested goals in `brain/autonomy_strategy.json`.
 
+### Overnight Soak Test
+
+```bash
+# Default overnight profile (8h, 5m interval)
+npm run test:soak
+
+# Custom duration and cadence (example: 10h, every 2 minutes)
+node tests/overnightSoak.mjs --hours 10 --intervalSec 120
+
+# Keep soak home for forensics
+node tests/overnightSoak.mjs --hours 8 --intervalSec 300 --keepHome
+```
+
+The soak runner writes a report to `memory/soak/overnight-soak-*.json` with per-cycle command outcomes and failures.
+
 ### Directory Structure
 
 ```

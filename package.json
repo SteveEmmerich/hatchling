@@ -20,6 +20,7 @@
     "test": "npm run build && node --test tests/**/*.test.mjs",
     "verify": "npm run lint && npm test",
     "build": "tsc",
+    "test:soak": "node tests/overnightSoak.mjs",
     "dev": "npm run build && pi --extension ./dist/extension.js",
     "prepare": "npm run build",
     "postinstall": "patch-package"
