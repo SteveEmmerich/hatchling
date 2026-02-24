@@ -39,6 +39,8 @@ test("web --snapshot renders dashboard HTML for active instance", async () => {
   assert.match(web.stdout, /HATCHLING VITALS/i);
   assert.match(web.stdout, /<svg/i);
   assert.match(web.stdout, /@keyframes breath/i);
+  assert.match(web.stdout, /trusted bonds:/i);
+  assert.match(web.stdout, /pending goals:/i);
 
   await fs.rm(testHome, { recursive: true, force: true });
 });

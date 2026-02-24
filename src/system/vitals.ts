@@ -72,6 +72,12 @@ export async function getVitals() {
     `${config.name || 'hatchling'}:${config.createdAt || root}`,
   );
   const personality = await loadPersonalityState(root);
+  const socialMemory = await readJsonOrDefault('brain/social_memory.json', {
+    users: {},
+  } as { users: Record<string, { relationshipStage?: string }> });
+  const socialUsers = Object.values(socialMemory.users || {});
+  const trustedBonds = socialUsers.filter((u) => String(u.relationshipStage || '') === 'trusted').length;
+  const familiarBonds = socialUsers.filter((u) => String(u.relationshipStage || '') === 'familiar').length;
   const personalityLabel = [
     ...personality.baseTraits.slice(0, 3),
     ...personality.adaptiveTraits.slice(0, 2),
@@ -102,6 +108,7 @@ ${creatureBlock}
 🦠 Mutations Today:  ${mutationState.mutationsToday} / 5 (Daily)
 🧪 Success Rate:     ${successRatio}%
 🧠 Personality:      ${personalityLabel || "curious"}
+🤝 Social Bonds:     trusted=${trustedBonds} familiar=${familiarBonds}
 ⚡ Metabolism:       ${energyLevel} (${tokenUsagePercent.toFixed(1)}% Token Usage)
 🏥 Biological Integrity: ${health.safeMode ? '⚠️ SAFE MODE' : '✅ Healthy'}
 👻 Ghost Pulse:      ${daemonStatus}
