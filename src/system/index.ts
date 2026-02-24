@@ -28,6 +28,8 @@ export * from './control-plane.js';
 export * from './channels.js';
 export * from './channel-runtime.js';
 export * from './channel-policy.js';
+export * from './channel-quality.js';
+export * from './social-memory.js';
 export * from './evolve-journal.js';
 export * from './autonomy.js';
 export * from './autonomy-strategy.js';

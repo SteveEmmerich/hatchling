@@ -7,6 +7,8 @@ import type { SupportedChannel } from "./channels.js";
 import { validateChannelCapability } from "./channels.js";
 import { readChannelPolicy, evaluateChannelPolicy } from "./channel-policy.js";
 import { loadPersonalityState, styleReplyForPersonality } from "./personality-adaptation.js";
+import { updateSocialMemory } from "./social-memory.js";
+import { generateQualityReply } from "./channel-quality.js";
 
 type LoopHandle = {
   timer: NodeJS.Timeout;
@@ -67,6 +69,35 @@ function inboxPath(rootDir: string, channel: SupportedChannel): string {
 
 function routingPath(rootDir: string, channel: SupportedChannel): string {
   return path.join(rootDir, "memory", "channels", channel, "routing.jsonl");
+}
+
+async function readRecentSenderHistory(
+  rootDir: string,
+  channel: SupportedChannel,
+  sender: string,
+  limit = 5,
+): Promise<string[]> {
+  const target = inboxPath(rootDir, channel);
+  if (!existsSync(target)) return [];
+  try {
+    const raw = await fs.readFile(target, "utf-8");
+    const lines = raw.split("\n").filter(Boolean).slice(-200);
+    const history: string[] = [];
+    for (const line of lines.reverse()) {
+      try {
+        const parsed = JSON.parse(line) as Record<string, any>;
+        const candidateSender = String(parsed.from || parsed.fromId || parsed.chatId || "").trim();
+        if (candidateSender !== sender) continue;
+        const text = String(parsed.text || "").trim();
+        if (!text) continue;
+        history.push(text);
+        if (history.length >= limit) break;
+      } catch {}
+    }
+    return history.reverse();
+  } catch {
+    return [];
+  }
 }
 
 function whatsappInboundWebhookPath(rootDir: string): string {
@@ -168,6 +199,7 @@ async function runTelegramTick(
       text,
       receivedAt: new Date().toISOString(),
     });
+    const profile = await updateSocialMemory(rootDir, "telegram", String(message?.from?.id || chatId), text);
     const decision = evaluateChannelPolicy("telegram", text, String(message?.from?.id || chatId), policy, new Date());
     await appendRoutingDecision(rootDir, "telegram", {
       ...decision,
@@ -177,7 +209,22 @@ async function runTelegramTick(
     });
     if (options.autoReply && decision.shouldReply && decision.responseText) {
       const styledReply = styleReplyForPersonality(decision.responseText, personality);
-      await sendTelegramMessage(botToken, chatId, styledReply, fetchImpl);
+      const recentHistory = await readRecentSenderHistory(rootDir, "telegram", String(message?.from?.id || chatId), 5);
+      const quality = await generateQualityReply(
+        rootDir,
+        {
+          channel: "telegram",
+          sender: String(message?.from?.id || chatId),
+          inboundText: text,
+          routeName: decision.routeName,
+          baseReply: styledReply,
+          personality,
+          socialProfile: profile,
+          recentHistory,
+        },
+        { fetchImpl },
+      );
+      await sendTelegramMessage(botToken, chatId, quality.text, fetchImpl);
     }
   }
 
@@ -266,6 +313,7 @@ async function runWhatsAppTick(
         text: event.text,
         receivedAt: new Date().toISOString(),
       });
+      const profile = await updateSocialMemory(rootDir, "whatsapp", event.from, event.text);
       const decision = evaluateChannelPolicy("whatsapp", event.text, event.from, policy, new Date());
       await appendRoutingDecision(rootDir, "whatsapp", {
         ...decision,
@@ -274,7 +322,22 @@ async function runWhatsAppTick(
       });
       if (options.autoReply && token && phoneNumberId && decision.shouldReply && decision.responseText) {
         const styledReply = styleReplyForPersonality(decision.responseText, personality);
-        await sendWhatsAppMessage(token, phoneNumberId, event.from, styledReply, fetchImpl);
+        const recentHistory = await readRecentSenderHistory(rootDir, "whatsapp", event.from, 5);
+        const quality = await generateQualityReply(
+          rootDir,
+          {
+            channel: "whatsapp",
+            sender: event.from,
+            inboundText: event.text,
+            routeName: decision.routeName,
+            baseReply: styledReply,
+            personality,
+            socialProfile: profile,
+            recentHistory,
+          },
+          { fetchImpl },
+        );
+        await sendWhatsAppMessage(token, phoneNumberId, event.from, quality.text, fetchImpl);
       }
     }
   }

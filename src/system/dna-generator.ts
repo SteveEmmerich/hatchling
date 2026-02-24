@@ -159,6 +159,7 @@ export async function generateDNAFiles(
       2,
     ),
     "mcp_servers.json": JSON.stringify({ servers: [] }, null, 2),
+    "social_memory.json": JSON.stringify({ version: 1, users: {} }, null, 2),
     "capabilities.json": JSON.stringify(
       {
         capabilities: {

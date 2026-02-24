@@ -22,6 +22,8 @@ Last updated: 2026-02-22
 - Channel runtime loop: `channel run <telegram|whatsapp>` provides a dedicated live chat loop separate from maintenance.
 - WhatsApp webhook ingress: `channel webhook whatsapp` provides Meta verification + inbound payload capture into runtime queue.
 - Channel routing policy layer: inbound channel messages are evaluated via `brain/channel_policy.json` with per-channel rules, quiet-hours suppression, and templated replies (`channel policy` command + routing decision logs).
+- Conversation quality layer: channel replies can be provider-rewritten (OpenAI/Anthropic when configured) and are socially shaped using persisted user interaction memory in `brain/social_memory.json`.
+- Social relationship memory now tracks trust/stage progression and recent history carryover for recurring channel users.
 - Daemon mode: `start --daemon`, `start --daemonStatus`, and `start --stopDaemon` manage background runtime per instance.
 - Share kit: `hatchling share` creates portable bundle + manifest + quickstart artifacts.
 - Creature TUI flair: vitals include deterministic per-instance creature avatar, growth stage, and mood rendering.
@@ -60,14 +62,16 @@ Last updated: 2026-02-22
 1. Conversational runtime UX depth
 - Identity onboarding is now conversational-first with narrative inference plus iterative revision.
 - Feedback-driven personality adaptation over time is implemented with persisted signals + adaptive traits.
-- Still needed: richer long-memory social behavior (relationship arcs, preference modeling, and context carryover).
+- Social memory persistence for recurring users is implemented with trust/stage progression and influences response tone.
+- Still needed: deeper preference modeling and richer relationship arc behaviors over longer horizons.
 
 2. Real transport adapters
 - Telegram/WhatsApp bootstrap, validation, and dedicated runtime loops are implemented.
 - Telegram live polling and ingestion are implemented.
 - WhatsApp production webhook ingress now captures and verifies inbound events and feeds the runtime queue.
 - Rule-based channel routing/response policy is implemented and configurable per instance.
-- Still needed: richer model-driven conversational response quality atop current policy routing.
+- Model-driven response rewrite layer is implemented for configured providers (with safe fallback when unavailable).
+- Still needed: deeper dialog planning quality beyond single-turn rewrite enhancements.
 
 3. Autonomous long-horizon planning
 - Bounded autonomy loop is implemented with approval guards and run logs.

@@ -154,7 +154,15 @@ test("telegram channel runtime applies route policy and custom reply template", 
               {
                 update_id: 9101,
                 message: {
-                  text: "please help",
+                  text: "thanks, please help",
+                  chat: { id: "123" },
+                  from: { id: "777" },
+                },
+              },
+              {
+                update_id: 9102,
+                message: {
+                  text: "thanks again, help",
                   chat: { id: "123" },
                   from: { id: "777" },
                 },
@@ -184,13 +192,17 @@ test("telegram channel runtime applies route policy and custom reply template", 
 
   const report = await runChannelRuntimeTick(rootDir, "telegram", { fetchImpl: fakeFetch, autoReply: true });
   assert.equal(report.ok, true);
-  assert.equal(report.processed, 1);
-  assert.equal(sentMessages.length, 1);
+  assert.equal(report.processed, 2);
+  assert.equal(sentMessages.length, 2);
   assert.match(String(sentMessages[0].text), /Priority support response to 777/);
+  assert.match(String(sentMessages[1].text), /Good to hear from you again\./);
 
   const routingPath = path.join(rootDir, "memory", "channels", "telegram", "routing.jsonl");
   const routing = await fs.readFile(routingPath, "utf-8");
   assert.match(routing, /priority_help/i);
+  const socialPath = path.join(rootDir, "brain", "social_memory.json");
+  const social = JSON.parse(await fs.readFile(socialPath, "utf-8"));
+  assert.equal(social.users["telegram:777"].interactions >= 2, true);
 
   await fs.rm(testHome, { recursive: true, force: true });
   delete process.env.TELEGRAM_BOT_TOKEN;

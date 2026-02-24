@@ -1,0 +1,118 @@
+import fs from "fs/promises";
+import { existsSync } from "fs";
+import path from "path";
+import type { SupportedChannel } from "./channels.js";
+
+const SOCIAL_MEMORY_FILE = "brain/social_memory.json";
+
+export interface SocialUserProfile {
+  id: string;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  channels: SupportedChannel[];
+  interactions: number;
+  inferredTone: "friendly" | "direct" | "urgent";
+  trustScore: number;
+  relationshipStage: "new" | "familiar" | "trusted";
+  positiveSignals: number;
+  negativeSignals: number;
+  notes: string[];
+}
+
+export interface SocialMemoryState {
+  version: 1;
+  users: Record<string, SocialUserProfile>;
+}
+
+function socialMemoryPath(rootDir: string): string {
+  return path.join(rootDir, SOCIAL_MEMORY_FILE);
+}
+
+function inferTone(text: string): "friendly" | "direct" | "urgent" {
+  const lower = text.toLowerCase();
+  if (/\burgent\b|\basap\b|\bnow\b/.test(lower)) return "urgent";
+  if (/\bplease\b|\bthanks\b|\bthank you\b/.test(lower)) return "friendly";
+  return "direct";
+}
+
+function sentimentSignal(text: string): number {
+  const lower = text.toLowerCase();
+  if (/\bthanks\b|\bthank you\b|\bgreat\b|\bawesome\b|\blove\b/.test(lower)) return 1;
+  if (/\bwrong\b|\bbad\b|\bbroken\b|\bangry\b|\bfrustrat/.test(lower)) return -1;
+  return 0;
+}
+
+function relationshipStageFor(interactions: number, trustScore: number): "new" | "familiar" | "trusted" {
+  if (interactions >= 8 || trustScore >= 70) return "trusted";
+  if (interactions >= 3 || trustScore >= 55) return "familiar";
+  return "new";
+}
+
+export async function loadSocialMemory(rootDir: string): Promise<SocialMemoryState> {
+  const target = socialMemoryPath(rootDir);
+  if (!existsSync(target)) return { version: 1, users: {} };
+  try {
+    const parsed = JSON.parse(await fs.readFile(target, "utf-8")) as SocialMemoryState;
+    if (!parsed || parsed.version !== 1 || typeof parsed.users !== "object") {
+      return { version: 1, users: {} };
+    }
+    return parsed;
+  } catch {
+    return { version: 1, users: {} };
+  }
+}
+
+async function saveSocialMemory(rootDir: string, state: SocialMemoryState): Promise<void> {
+  const target = socialMemoryPath(rootDir);
+  await fs.mkdir(path.dirname(target), { recursive: true });
+  await fs.writeFile(target, JSON.stringify(state, null, 2), "utf-8");
+}
+
+export async function updateSocialMemory(
+  rootDir: string,
+  channel: SupportedChannel,
+  senderId: string,
+  text: string,
+): Promise<SocialUserProfile> {
+  const state = await loadSocialMemory(rootDir);
+  const key = `${channel}:${senderId}`.toLowerCase();
+  const now = new Date().toISOString();
+  const tone = inferTone(text);
+  const sentiment = sentimentSignal(text);
+  const existing = state.users[key];
+  const next: SocialUserProfile = existing
+    ? {
+        ...existing,
+        lastSeenAt: now,
+        channels: Array.from(new Set([...(existing.channels || []), channel])) as SupportedChannel[],
+        interactions: Number(existing.interactions || 0) + 1,
+        inferredTone: tone,
+        trustScore: Math.max(0, Math.min(100, Number(existing.trustScore || 50) + sentiment * 4 + 1)),
+        positiveSignals: Number(existing.positiveSignals || 0) + (sentiment > 0 ? 1 : 0),
+        negativeSignals: Number(existing.negativeSignals || 0) + (sentiment < 0 ? 1 : 0),
+      }
+    : {
+        id: key,
+        firstSeenAt: now,
+        lastSeenAt: now,
+        channels: [channel],
+        interactions: 1,
+        inferredTone: tone,
+        trustScore: Math.max(0, Math.min(100, 50 + sentiment * 4)),
+        relationshipStage: "new",
+        positiveSignals: sentiment > 0 ? 1 : 0,
+        negativeSignals: sentiment < 0 ? 1 : 0,
+        notes: [],
+      };
+
+  next.relationshipStage = relationshipStageFor(next.interactions, next.trustScore);
+
+  if (text.length <= 120 && /prefer|like|don't like|do not like|always|never/i.test(text)) {
+    const trimmed = text.trim();
+    next.notes = [...(next.notes || []), trimmed].slice(-20);
+  }
+
+  state.users[key] = next;
+  await saveSocialMemory(rootDir, state);
+  return next;
+}
