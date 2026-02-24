@@ -9,6 +9,7 @@ import { readChannelPolicy, evaluateChannelPolicy } from "./channel-policy.js";
 import { loadPersonalityState, styleReplyForPersonality } from "./personality-adaptation.js";
 import { updateSocialMemory } from "./social-memory.js";
 import { generateQualityReply } from "./channel-quality.js";
+import { planDialogTurn } from "./dialog-state.js";
 
 type LoopHandle = {
   timer: NodeJS.Timeout;
@@ -210,6 +211,13 @@ async function runTelegramTick(
     if (options.autoReply && decision.shouldReply && decision.responseText) {
       const styledReply = styleReplyForPersonality(decision.responseText, personality);
       const recentHistory = await readRecentSenderHistory(rootDir, "telegram", String(message?.from?.id || chatId), 5);
+      const dialogPlan = await planDialogTurn(
+        rootDir,
+        "telegram",
+        String(message?.from?.id || chatId),
+        text,
+        decision.routeName,
+      );
       const quality = await generateQualityReply(
         rootDir,
         {
@@ -221,6 +229,7 @@ async function runTelegramTick(
           personality,
           socialProfile: profile,
           recentHistory,
+          dialogPlan,
         },
         { fetchImpl },
       );
@@ -323,6 +332,7 @@ async function runWhatsAppTick(
       if (options.autoReply && token && phoneNumberId && decision.shouldReply && decision.responseText) {
         const styledReply = styleReplyForPersonality(decision.responseText, personality);
         const recentHistory = await readRecentSenderHistory(rootDir, "whatsapp", event.from, 5);
+        const dialogPlan = await planDialogTurn(rootDir, "whatsapp", event.from, event.text, decision.routeName);
         const quality = await generateQualityReply(
           rootDir,
           {
@@ -334,6 +344,7 @@ async function runWhatsAppTick(
             personality,
             socialProfile: profile,
             recentHistory,
+            dialogPlan,
           },
           { fetchImpl },
         );

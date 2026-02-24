@@ -24,6 +24,7 @@ Last updated: 2026-02-22
 - Channel routing policy layer: inbound channel messages are evaluated via `brain/channel_policy.json` with per-channel rules, quiet-hours suppression, and templated replies (`channel policy` command + routing decision logs).
 - Conversation quality layer: channel replies can be provider-rewritten (OpenAI/Anthropic when configured) and are socially shaped using persisted user interaction memory in `brain/social_memory.json`.
 - Social relationship memory now tracks trust/stage progression and recent history carryover for recurring channel users.
+- Multi-turn dialog planning state is persisted per user (`brain/dialog_state.json`) and used to generate follow-up clarifying prompts for ambiguous requests.
 - Daemon mode: `start --daemon`, `start --daemonStatus`, and `start --stopDaemon` manage background runtime per instance.
 - Share kit: `hatchling share` creates portable bundle + manifest + quickstart artifacts.
 - Creature TUI flair: vitals include deterministic per-instance creature avatar, growth stage, and mood rendering.
@@ -71,7 +72,8 @@ Last updated: 2026-02-22
 - WhatsApp production webhook ingress now captures and verifies inbound events and feeds the runtime queue.
 - Rule-based channel routing/response policy is implemented and configurable per instance.
 - Model-driven response rewrite layer is implemented for configured providers (with safe fallback when unavailable).
-- Still needed: deeper dialog planning quality beyond single-turn rewrite enhancements.
+- Dialog planning now tracks multi-turn context and clarifying follow-up prompts.
+- Still needed: broader task-level multi-turn planning depth for complex long-running conversations.
 
 3. Autonomous long-horizon planning
 - Bounded autonomy loop is implemented with approval guards and run logs.

@@ -264,6 +264,7 @@ Bootstrap now also installs a reusable shared skill at `limbs/channel-mcp-bridge
 Inbound messages are routed through `brain/channel_policy.json` and decision logs are written to `memory/channels/<channel>/routing.jsonl`.
 Feedback continuously shapes `brain/personality_state.json`, and channel auto-replies adapt tone from this evolving state.
 Channel replies now include a conversation-quality layer with provider-aware rewriting (OpenAI/Anthropic when configured) and social fallback shaping via `brain/social_memory.json` (trust/stage progression + recent history carryover).
+Multi-turn dialog planning state is persisted in `brain/dialog_state.json` and can trigger targeted follow-up questions for ambiguous requests.
 Autonomy runs now also synthesize strategic self-goals from local state and merge them with user-requested goals in `brain/autonomy_strategy.json`.
 
 ### Overnight Soak Test

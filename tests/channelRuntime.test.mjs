@@ -289,6 +289,110 @@ test("channel run whatsapp processes inbound webhook queue", async () => {
   await fs.rm(testHome, { recursive: true, force: true });
 });
 
+test("telegram runtime multi-turn planner adds follow-up question for ambiguous default requests", async () => {
+  const testHome = path.join(process.cwd(), ".tmp-test-home-channel-runtime-telegram-dialog");
+  await fs.rm(testHome, { recursive: true, force: true });
+  await fs.mkdir(testHome, { recursive: true });
+
+  const env = {
+    ...process.env,
+    HATCHLING_HOME: testHome,
+    HATCHLING_HINDBRAIN_BACKEND: "cpu",
+    TELEGRAM_BOT_TOKEN: "test-token",
+    TELEGRAM_CHAT_ID: "123",
+  };
+  const init = spawnSync(
+    "node",
+    [
+      "dist/cli.js",
+      "init",
+      "--non-interactive",
+      "--name",
+      "channel-runtime-telegram-dialog-seed",
+      "--purpose",
+      "Validate telegram dialog planning",
+      "--personality",
+      "curious,direct",
+    ],
+    { cwd: process.cwd(), env, encoding: "utf-8" },
+  );
+  assert.equal(init.status, 0, `${init.stdout}\n${init.stderr}`);
+
+  const bootstrap = spawnSync("node", ["dist/cli.js", "channel", "bootstrap", "telegram"], {
+    cwd: process.cwd(),
+    env,
+    encoding: "utf-8",
+  });
+  assert.equal(bootstrap.status, 0, `${bootstrap.stdout}\n${bootstrap.stderr}`);
+
+  process.env.TELEGRAM_BOT_TOKEN = "test-token";
+  process.env.TELEGRAM_CHAT_ID = "123";
+
+  const rootDir = path.join(testHome, ".hatchlings", "channel-runtime-telegram-dialog-seed");
+  const policyPath = path.join(rootDir, "brain", "channel_policy.json");
+  const policy = JSON.parse(await fs.readFile(policyPath, "utf-8"));
+  policy.telegram.routes = [];
+  policy.telegram.defaultResponseTemplate = "Acknowledged: {{text}}";
+  await fs.writeFile(policyPath, JSON.stringify(policy, null, 2), "utf-8");
+
+  const { runChannelRuntimeTick } = await import("../dist/system/channel-runtime.js");
+  const sentMessages = [];
+  const fakeFetch = async (url, initReq) => {
+    const asString = String(url);
+    if (/getUpdates/i.test(asString)) {
+      return {
+        ok: true,
+        async json() {
+          return {
+            ok: true,
+            result: [
+              {
+                update_id: 9201,
+                message: {
+                  text: "help",
+                  chat: { id: "123" },
+                  from: { id: "999" },
+                },
+              },
+            ],
+          };
+        },
+        async text() {
+          return "";
+        },
+      };
+    }
+    if (/sendMessage/i.test(asString)) {
+      sentMessages.push(JSON.parse(String(initReq?.body || "{}")));
+      return {
+        ok: true,
+        async json() {
+          return { ok: true };
+        },
+        async text() {
+          return "";
+        },
+      };
+    }
+    throw new Error(`Unexpected URL ${asString}`);
+  };
+
+  const report = await runChannelRuntimeTick(rootDir, "telegram", { fetchImpl: fakeFetch, autoReply: true });
+  assert.equal(report.ok, true);
+  assert.equal(report.processed, 1);
+  assert.equal(sentMessages.length, 1);
+  assert.match(String(sentMessages[0].text), /exact outcome you want next/i);
+
+  const dialogPath = path.join(rootDir, "brain", "dialog_state.json");
+  const dialog = JSON.parse(await fs.readFile(dialogPath, "utf-8"));
+  assert.equal(typeof dialog.sessions["telegram:999"], "object");
+  assert.match(String(dialog.sessions["telegram:999"].openQuestion), /exact outcome/i);
+
+  await fs.rm(testHome, { recursive: true, force: true });
+  delete process.env.TELEGRAM_BOT_TOKEN;
+  delete process.env.TELEGRAM_CHAT_ID;
+});
+
 test("whatsapp webhook ingress helpers verify challenge and write inbound payload", async () => {
   const testHome = path.join(process.cwd(), ".tmp-test-home-channel-runtime-whatsapp-webhook");
   await fs.rm(testHome, { recursive: true, force: true });

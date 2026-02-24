@@ -4,6 +4,7 @@ import path from "path";
 import type { SupportedChannel } from "./channels.js";
 import type { PersonalityState } from "./personality-adaptation.js";
 import type { SocialUserProfile } from "./social-memory.js";
+import type { DialogTurnPlan } from "./dialog-state.js";
 
 interface QualityConfig {
   provider: string;
@@ -19,6 +20,7 @@ export interface ChannelReplyContext {
   personality: PersonalityState;
   socialProfile?: SocialUserProfile;
   recentHistory?: string[];
+  dialogPlan?: DialogTurnPlan;
 }
 
 function configPath(rootDir: string): string {
@@ -43,19 +45,23 @@ function fallbackQualityReply(context: ChannelReplyContext): string {
   const base = context.baseReply.trim();
   if (!base) return "";
   const interactions = Number(context.socialProfile?.interactions || 0);
+  let response = base;
   if (context.socialProfile?.inferredTone === "urgent") {
-    return `Priority noted. ${base}`;
+    response = `Priority noted. ${response}`;
   }
   if (context.socialProfile?.relationshipStage === "trusted") {
-    return `Welcome back. ${base}`;
+    response = `Welcome back. ${response}`;
   }
   if (context.socialProfile?.inferredTone === "friendly" && interactions > 1) {
-    return `Good to hear from you again. ${base}`;
+    response = `Good to hear from you again. ${response}`;
   }
   if (context.personality.signals.warmth >= 7) {
-    return `Happy to help. ${base}`;
+    response = `Happy to help. ${response}`;
   }
-  return base;
+  if (context.dialogPlan?.followUpQuestion) {
+    response = `${response} ${context.dialogPlan.followUpQuestion}`.trim();
+  }
+  return response;
 }
 
 async function tryOpenAIReply(
@@ -89,6 +95,9 @@ async function tryOpenAIReply(
             `ToneHint: ${context.socialProfile?.inferredTone || "direct"}`,
             `Relationship: ${context.socialProfile?.relationshipStage || "new"} (trust=${context.socialProfile?.trustScore ?? 50})`,
             `RecentHistory: ${(context.recentHistory || []).slice(-4).join(" | ") || "none"}`,
+            `DialogIntent: ${context.dialogPlan?.session.lastIntent || "general"}`,
+            `ObjectiveSummary: ${context.dialogPlan?.objectiveSummary || "none"}`,
+            `FollowUpQuestion: ${context.dialogPlan?.followUpQuestion || "none"}`,
           ].join("\n"),
         },
       ],
@@ -131,6 +140,9 @@ async function tryAnthropicReply(
             `ToneHint: ${context.socialProfile?.inferredTone || "direct"}`,
             `Relationship: ${context.socialProfile?.relationshipStage || "new"} (trust=${context.socialProfile?.trustScore ?? 50})`,
             `RecentHistory: ${(context.recentHistory || []).slice(-4).join(" | ") || "none"}`,
+            `DialogIntent: ${context.dialogPlan?.session.lastIntent || "general"}`,
+            `ObjectiveSummary: ${context.dialogPlan?.objectiveSummary || "none"}`,
+            `FollowUpQuestion: ${context.dialogPlan?.followUpQuestion || "none"}`,
           ].join("\n"),
         },
       ],
