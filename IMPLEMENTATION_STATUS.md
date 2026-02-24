@@ -25,6 +25,7 @@ Last updated: 2026-02-22
 - Conversation quality layer: channel replies can be provider-rewritten (OpenAI/Anthropic when configured) and are socially shaped using persisted user interaction memory in `brain/social_memory.json`.
 - Social relationship memory now tracks trust/stage progression and recent history carryover for recurring channel users.
 - Multi-turn dialog planning state is persisted per user (`brain/dialog_state.json`) and used to generate follow-up clarifying prompts for ambiguous requests.
+- Preference modeling now captures user verbosity/pace hints and applies them during reply shaping.
 - Daemon mode: `start --daemon`, `start --daemonStatus`, and `start --stopDaemon` manage background runtime per instance.
 - Share kit: `hatchling share` creates portable bundle + manifest + quickstart artifacts.
 - Creature TUI flair: vitals include deterministic per-instance creature avatar, growth stage, and mood rendering.
@@ -63,8 +64,8 @@ Last updated: 2026-02-22
 1. Conversational runtime UX depth
 - Identity onboarding is now conversational-first with narrative inference plus iterative revision.
 - Feedback-driven personality adaptation over time is implemented with persisted signals + adaptive traits.
-- Social memory persistence for recurring users is implemented with trust/stage progression and influences response tone.
-- Still needed: deeper preference modeling and richer relationship arc behaviors over longer horizons.
+- Social memory persistence for recurring users is implemented with trust/stage progression, preference hints, and response-tone influence.
+- Still needed: richer relationship-arc behaviors over longer horizons.
 
 2. Real transport adapters
 - Telegram/WhatsApp bootstrap, validation, and dedicated runtime loops are implemented.

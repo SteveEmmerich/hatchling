@@ -36,6 +36,11 @@ test("channel quality uses fallback shaping when provider response is unavailabl
       channels: ["telegram"],
       interactions: 3,
       inferredTone: "friendly",
+      trustScore: 62,
+      relationshipStage: "familiar",
+      positiveSignals: 1,
+      negativeSignals: 0,
+      preferences: { verbosity: "balanced", pace: "normal" },
       notes: [],
     },
   });

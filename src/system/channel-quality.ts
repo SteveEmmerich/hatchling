@@ -61,6 +61,13 @@ function fallbackQualityReply(context: ChannelReplyContext): string {
   if (context.dialogPlan?.followUpQuestion) {
     response = `${response} ${context.dialogPlan.followUpQuestion}`.trim();
   }
+  const verbosity = context.socialProfile?.preferences?.verbosity || "balanced";
+  if (verbosity === "brief" && response.length > 180) {
+    response = `${response.slice(0, 177).trimEnd()}...`;
+  }
+  if (verbosity === "detailed" && !response.includes("Next:")) {
+    response = `${response} Next: confirm your preferred target and constraints.`;
+  }
   return response;
 }
 
@@ -94,6 +101,7 @@ async function tryOpenAIReply(
             `BaseReply: ${context.baseReply}`,
             `ToneHint: ${context.socialProfile?.inferredTone || "direct"}`,
             `Relationship: ${context.socialProfile?.relationshipStage || "new"} (trust=${context.socialProfile?.trustScore ?? 50})`,
+            `Preferences: verbosity=${context.socialProfile?.preferences?.verbosity || "balanced"}, pace=${context.socialProfile?.preferences?.pace || "normal"}`,
             `RecentHistory: ${(context.recentHistory || []).slice(-4).join(" | ") || "none"}`,
             `DialogIntent: ${context.dialogPlan?.session.lastIntent || "general"}`,
             `ObjectiveSummary: ${context.dialogPlan?.objectiveSummary || "none"}`,
@@ -139,6 +147,7 @@ async function tryAnthropicReply(
             `BaseReply: ${context.baseReply}`,
             `ToneHint: ${context.socialProfile?.inferredTone || "direct"}`,
             `Relationship: ${context.socialProfile?.relationshipStage || "new"} (trust=${context.socialProfile?.trustScore ?? 50})`,
+            `Preferences: verbosity=${context.socialProfile?.preferences?.verbosity || "balanced"}, pace=${context.socialProfile?.preferences?.pace || "normal"}`,
             `RecentHistory: ${(context.recentHistory || []).slice(-4).join(" | ") || "none"}`,
             `DialogIntent: ${context.dialogPlan?.session.lastIntent || "general"}`,
             `ObjectiveSummary: ${context.dialogPlan?.objectiveSummary || "none"}`,

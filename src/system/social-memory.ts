@@ -16,6 +16,10 @@ export interface SocialUserProfile {
   relationshipStage: "new" | "familiar" | "trusted";
   positiveSignals: number;
   negativeSignals: number;
+  preferences: {
+    verbosity: "brief" | "balanced" | "detailed";
+    pace: "normal" | "fast";
+  };
   notes: string[];
 }
 
@@ -46,6 +50,19 @@ function relationshipStageFor(interactions: number, trustScore: number): "new" |
   if (interactions >= 8 || trustScore >= 70) return "trusted";
   if (interactions >= 3 || trustScore >= 55) return "familiar";
   return "new";
+}
+
+function inferPreferences(
+  text: string,
+  current: { verbosity: "brief" | "balanced" | "detailed"; pace: "normal" | "fast" } | undefined,
+): { verbosity: "brief" | "balanced" | "detailed"; pace: "normal" | "fast" } {
+  const lower = text.toLowerCase();
+  let verbosity = current?.verbosity || "balanced";
+  let pace = current?.pace || "normal";
+  if (/\bshort\b|\bbrief\b|\btldr\b|\bconcise\b/.test(lower)) verbosity = "brief";
+  if (/\bdetailed\b|\bdeep\b|\bthorough\b/.test(lower)) verbosity = "detailed";
+  if (/\bquick\b|\bfast\b|\basap\b/.test(lower)) pace = "fast";
+  return { verbosity, pace };
 }
 
 export async function loadSocialMemory(rootDir: string): Promise<SocialMemoryState> {
@@ -90,6 +107,7 @@ export async function updateSocialMemory(
         trustScore: Math.max(0, Math.min(100, Number(existing.trustScore || 50) + sentiment * 4 + 1)),
         positiveSignals: Number(existing.positiveSignals || 0) + (sentiment > 0 ? 1 : 0),
         negativeSignals: Number(existing.negativeSignals || 0) + (sentiment < 0 ? 1 : 0),
+        preferences: inferPreferences(text, existing.preferences),
       }
     : {
         id: key,
@@ -102,6 +120,7 @@ export async function updateSocialMemory(
         relationshipStage: "new",
         positiveSignals: sentiment > 0 ? 1 : 0,
         negativeSignals: sentiment < 0 ? 1 : 0,
+        preferences: inferPreferences(text, undefined),
         notes: [],
       };
 
