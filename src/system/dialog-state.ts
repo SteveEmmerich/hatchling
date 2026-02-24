@@ -16,6 +16,12 @@ export interface DialogSession {
   objectiveSummary: string;
   openQuestion?: string;
   recentMessages: string[];
+  thread: {
+    objective: string;
+    stage: "scoping" | "planning" | "executing" | "verifying" | "completed";
+    nextStep: string;
+    completedAt?: string;
+  };
 }
 
 export interface DialogState {
@@ -27,6 +33,8 @@ export interface DialogTurnPlan {
   session: DialogSession;
   followUpQuestion?: string;
   objectiveSummary: string;
+  progressLabel: string;
+  nextStep: string;
 }
 
 function dialogStatePath(rootDir: string): string {
@@ -52,6 +60,24 @@ function inferObjectiveSummary(text: string, previous: string): string {
   if (trimmed.length >= 16) return trimmed.slice(0, 180);
   if (previous) return previous;
   return trimmed || "unspecified objective";
+}
+
+function inferStage(text: string, prior: DialogSession["thread"]["stage"]): DialogSession["thread"]["stage"] {
+  const lower = text.toLowerCase();
+  if (/\bdone\b|\bcompleted\b|\bworks now\b|\bfixed\b/.test(lower)) return "completed";
+  if (/\btest\b|\bverify\b|\bcheck\b/.test(lower)) return "verifying";
+  if (/\bimplement\b|\bbuild\b|\bcreate\b|\badd\b/.test(lower)) return "executing";
+  if (/\bplan\b|\bapproach\b|\bdesign\b/.test(lower)) return "planning";
+  if (prior === "completed") return "verifying";
+  return prior;
+}
+
+function inferNextStep(stage: DialogSession["thread"]["stage"], objectiveSummary: string): string {
+  if (stage === "scoping") return "clarify success criteria and target files";
+  if (stage === "planning") return "confirm step order and safety constraints";
+  if (stage === "executing") return `execute concrete change for: ${objectiveSummary.slice(0, 80)}`;
+  if (stage === "verifying") return "run verification and report outcome";
+  return "record outcome and select next objective";
 }
 
 function shouldAskFollowUp(routeName: string, text: string, hasOpenQuestion: boolean): boolean {
@@ -100,6 +126,11 @@ export async function planDialogTurn(
         ...existing,
         turns: Number(existing.turns || 0) + 1,
         lastSeenAt: now,
+        thread: existing.thread || {
+          objective: existing.objectiveSummary || "",
+          stage: "scoping",
+          nextStep: "clarify success criteria and target files",
+        },
       }
     : {
         id: key,
@@ -111,11 +142,22 @@ export async function planDialogTurn(
         lastIntent: intent,
         objectiveSummary: "",
         recentMessages: [],
+        thread: {
+          objective: "",
+          stage: "scoping",
+          nextStep: "clarify success criteria and target files",
+        },
       };
 
   session.lastIntent = intent;
   session.objectiveSummary = inferObjectiveSummary(inboundText, session.objectiveSummary);
   session.recentMessages = [...(session.recentMessages || []), inboundText.trim()].filter(Boolean).slice(-12);
+  session.thread.objective = session.objectiveSummary;
+  session.thread.stage = inferStage(inboundText, session.thread.stage || "scoping");
+  session.thread.nextStep = inferNextStep(session.thread.stage, session.objectiveSummary);
+  if (session.thread.stage === "completed" && !session.thread.completedAt) {
+    session.thread.completedAt = now;
+  }
 
   if (session.openQuestion && inboundText.trim().length >= 20) {
     session.openQuestion = undefined;
@@ -135,5 +177,7 @@ export async function planDialogTurn(
     session,
     followUpQuestion,
     objectiveSummary: session.objectiveSummary,
+    progressLabel: session.thread.stage,
+    nextStep: session.thread.nextStep,
   };
 }

@@ -14,6 +14,8 @@ test("dialog state tracks sessions and follow-up planning for ambiguous requests
   assert.equal(typeof first.followUpQuestion, "string");
   assert.match(String(first.followUpQuestion), /exact outcome/i);
   assert.equal(first.session.turns, 1);
+  assert.equal(first.progressLabel, "scoping");
+  assert.match(first.nextStep, /clarify success criteria/i);
 
   const second = await planDialogTurn(
     testRoot,
@@ -25,6 +27,8 @@ test("dialog state tracks sessions and follow-up planning for ambiguous requests
   assert.equal(second.session.turns, 2);
   assert.equal(second.session.openQuestion, undefined);
   assert.match(second.objectiveSummary, /web dashboard/i);
+  assert.equal(["executing", "planning", "scoping", "verifying", "completed"].includes(second.progressLabel), true);
+  assert.equal(typeof second.nextStep, "string");
 
   const persisted = await loadDialogState(testRoot);
   assert.equal(typeof persisted.sessions["telegram:777"], "object");

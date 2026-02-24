@@ -61,6 +61,12 @@ function fallbackQualityReply(context: ChannelReplyContext): string {
   if (context.dialogPlan?.followUpQuestion) {
     response = `${response} ${context.dialogPlan.followUpQuestion}`.trim();
   }
+  if (context.dialogPlan?.nextStep && !response.includes("Next:")) {
+    response = `${response} Next: ${context.dialogPlan.nextStep}.`;
+  }
+  if (context.dialogPlan?.progressLabel && !response.includes("Progress:")) {
+    response = `Progress: ${context.dialogPlan.progressLabel}. ${response}`;
+  }
   const verbosity = context.socialProfile?.preferences?.verbosity || "balanced";
   if (verbosity === "brief" && response.length > 180) {
     response = `${response.slice(0, 177).trimEnd()}...`;
@@ -105,6 +111,8 @@ async function tryOpenAIReply(
             `RecentHistory: ${(context.recentHistory || []).slice(-4).join(" | ") || "none"}`,
             `DialogIntent: ${context.dialogPlan?.session.lastIntent || "general"}`,
             `ObjectiveSummary: ${context.dialogPlan?.objectiveSummary || "none"}`,
+            `Progress: ${context.dialogPlan?.progressLabel || "scoping"}`,
+            `NextStep: ${context.dialogPlan?.nextStep || "none"}`,
             `FollowUpQuestion: ${context.dialogPlan?.followUpQuestion || "none"}`,
           ].join("\n"),
         },
@@ -151,6 +159,8 @@ async function tryAnthropicReply(
             `RecentHistory: ${(context.recentHistory || []).slice(-4).join(" | ") || "none"}`,
             `DialogIntent: ${context.dialogPlan?.session.lastIntent || "general"}`,
             `ObjectiveSummary: ${context.dialogPlan?.objectiveSummary || "none"}`,
+            `Progress: ${context.dialogPlan?.progressLabel || "scoping"}`,
+            `NextStep: ${context.dialogPlan?.nextStep || "none"}`,
             `FollowUpQuestion: ${context.dialogPlan?.followUpQuestion || "none"}`,
           ].join("\n"),
         },

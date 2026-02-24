@@ -26,6 +26,7 @@ Last updated: 2026-02-22
 - Social relationship memory now tracks trust/stage progression and recent history carryover for recurring channel users.
 - Multi-turn dialog planning state is persisted per user (`brain/dialog_state.json`) and used to generate follow-up clarifying prompts for ambiguous requests.
 - Preference modeling now captures user verbosity/pace hints and applies them during reply shaping.
+- Task-level dialog threads now persist objective, stage progress, and next-step guidance for ongoing conversations.
 - Daemon mode: `start --daemon`, `start --daemonStatus`, and `start --stopDaemon` manage background runtime per instance.
 - Share kit: `hatchling share` creates portable bundle + manifest + quickstart artifacts.
 - Creature TUI flair: vitals include deterministic per-instance creature avatar, growth stage, and mood rendering.
@@ -73,8 +74,8 @@ Last updated: 2026-02-22
 - WhatsApp production webhook ingress now captures and verifies inbound events and feeds the runtime queue.
 - Rule-based channel routing/response policy is implemented and configurable per instance.
 - Model-driven response rewrite layer is implemented for configured providers (with safe fallback when unavailable).
-- Dialog planning now tracks multi-turn context and clarifying follow-up prompts.
-- Still needed: broader task-level multi-turn planning depth for complex long-running conversations.
+- Dialog planning now tracks multi-turn context, objective thread stage, and next-step guidance.
+- Still needed: richer multi-objective orchestration depth for complex long-running conversations.
 
 3. Autonomous long-horizon planning
 - Bounded autonomy loop is implemented with approval guards and run logs.
