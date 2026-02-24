@@ -29,6 +29,11 @@
 - [ ] install/usage docs up to date
 - [ ] backup/restore behavior validated (`generate_backup`)
 
+## Pilot Launch Readiness
+- [ ] `hatchling pilot checklist --json` passes for active pilot instance
+- [ ] `hatchling pilot snapshot --json` artifact generated and archived
+- [ ] overnight soak report reviewed (`memory/soak/overnight-soak-*.json`)
+
 ## Environment Compatibility
 - [ ] Node >= 20 confirmed
 - [ ] `HATCHLING_HOME` behavior documented and tested

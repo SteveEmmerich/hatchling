@@ -4,7 +4,7 @@
  */
 import { defineCommand, runMain } from "citty";
 import { spawn } from "child_process";
-import { resolve } from "path";
+import { dirname, resolve } from "path";
 import { existsSync, openSync } from "fs";
 import { access, constants, mkdir, readFile, rm, writeFile } from "fs/promises";
 import { homedir } from "os";
@@ -26,6 +26,33 @@ interface DoctorCheck {
   key: string;
   level: DoctorLevel;
   message: string;
+}
+
+interface PilotSnapshot {
+  generatedAt: string;
+  activeInstance: string;
+  instancePath: string;
+  doctor: { checks: DoctorCheck[]; ok: boolean };
+  daemon: { configured: boolean; running: boolean; pid?: number; startedAt?: string; logPath?: string };
+  vitals: string;
+  autonomy: {
+    pendingGoals: number;
+    topPendingObjectives: string[];
+    lastRunId?: string;
+    lastRunOk?: boolean;
+    lastRunAt?: string;
+  };
+  routing: {
+    telegramDecisions: number;
+    whatsappDecisions: number;
+    recentRouteNames: string[];
+  };
+}
+
+interface PilotChecklistItem {
+  key: string;
+  description: string;
+  passed: boolean;
 }
 const CREATURE_PALETTES = ["forest", "sunset", "ocean", "ember"] as const;
 const CREATURE_BODIES = ["round", "square", "spiky"] as const;
@@ -202,6 +229,127 @@ async function runDoctorChecks(): Promise<{ checks: DoctorCheck[]; ok: boolean }
     checks,
     ok: !checks.some((c) => c.level === "fail"),
   };
+}
+
+async function readJsonOrDefault<T>(filePath: string, fallback: T): Promise<T> {
+  if (!existsSync(filePath)) return fallback;
+  try {
+    return JSON.parse(await readFile(filePath, "utf-8")) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+async function summarizeRouting(instancePath: string): Promise<{
+  telegramDecisions: number;
+  whatsappDecisions: number;
+  recentRouteNames: string[];
+}> {
+  const channels = ["telegram", "whatsapp"] as const;
+  let telegramDecisions = 0;
+  let whatsappDecisions = 0;
+  const routeNames: string[] = [];
+  for (const channel of channels) {
+    const filePath = join(instancePath, "memory", "channels", channel, "routing.jsonl");
+    if (!existsSync(filePath)) continue;
+    const raw = await readFile(filePath, "utf-8");
+    const lines = raw.split("\n").filter(Boolean);
+    if (channel === "telegram") telegramDecisions = lines.length;
+    if (channel === "whatsapp") whatsappDecisions = lines.length;
+    const tail = lines.slice(-10);
+    for (const line of tail) {
+      try {
+        const parsed = JSON.parse(line) as { routeName?: string };
+        if (parsed.routeName) routeNames.push(String(parsed.routeName));
+      } catch {}
+    }
+  }
+  return {
+    telegramDecisions,
+    whatsappDecisions,
+    recentRouteNames: Array.from(new Set(routeNames)).slice(-10),
+  };
+}
+
+async function summarizeAutonomy(instancePath: string): Promise<{
+  pendingGoals: number;
+  topPendingObjectives: string[];
+  lastRunId?: string;
+  lastRunOk?: boolean;
+  lastRunAt?: string;
+}> {
+  const strategy = await readJsonOrDefault<{ goals?: Array<{ status?: string; objective?: string; priority?: number }> }>(
+    join(instancePath, "brain", "autonomy_strategy.json"),
+    { goals: [] },
+  );
+  const pending = (strategy.goals || [])
+    .filter((goal) => goal?.status === "pending")
+    .sort((a, b) => Number(b.priority || 0) - Number(a.priority || 0));
+  const runs = await readJsonOrDefault<{ runs?: Array<{ runId?: string; ok?: boolean; createdAt?: string }> }>(
+    join(instancePath, "brain", "autonomy_runs.json"),
+    { runs: [] },
+  );
+  const lastRun = (runs.runs || []).slice(-1)[0];
+  return {
+    pendingGoals: pending.length,
+    topPendingObjectives: pending.slice(0, 5).map((goal) => String(goal.objective || "")),
+    lastRunId: lastRun?.runId ? String(lastRun.runId) : undefined,
+    lastRunOk: typeof lastRun?.ok === "boolean" ? lastRun.ok : undefined,
+    lastRunAt: lastRun?.createdAt ? String(lastRun.createdAt) : undefined,
+  };
+}
+
+async function buildPilotSnapshot(activeInstance: string, instancePath: string): Promise<PilotSnapshot> {
+  const doctor = await runDoctorChecks();
+  const daemon = await readDaemonState(instancePath);
+  const daemonRunning = daemon ? isProcessRunning(daemon.pid) : false;
+  const { PathGuard } = await import("./system/pathGuard.js");
+  const { getVitals } = await import("./system/vitals.js");
+  PathGuard.setRoot(instancePath);
+  const vitals = await getVitals();
+  const autonomy = await summarizeAutonomy(instancePath);
+  const routing = await summarizeRouting(instancePath);
+  return {
+    generatedAt: new Date().toISOString(),
+    activeInstance,
+    instancePath,
+    doctor,
+    daemon: {
+      configured: Boolean(daemon),
+      running: daemonRunning,
+      pid: daemon?.pid,
+      startedAt: daemon?.startedAt,
+      logPath: daemon?.logPath,
+    },
+    vitals,
+    autonomy,
+    routing,
+  };
+}
+
+function evaluatePilotChecklist(snapshot: PilotSnapshot): PilotChecklistItem[] {
+  return [
+    {
+      key: "doctor_ok",
+      description: "Doctor has no blocking failures",
+      passed: snapshot.doctor.ok,
+    },
+    {
+      key: "daemon_running",
+      description: "Daemon is configured and running",
+      passed: snapshot.daemon.configured && snapshot.daemon.running,
+    },
+    {
+      key: "autonomy_present",
+      description: "Autonomy system has at least one run recorded",
+      passed: Boolean(snapshot.autonomy.lastRunId),
+    },
+    {
+      key: "routing_observable",
+      description: "At least one channel routing decision has been logged",
+      passed: snapshot.routing.telegramDecisions + snapshot.routing.whatsappDecisions > 0,
+    },
+  ];
 }
 
 const main = defineCommand({
@@ -1969,6 +2117,99 @@ const main = defineCommand({
         if (!report.ok) {
           process.exit(1);
         }
+      },
+    }),
+
+    pilot: defineCommand({
+      meta: {
+        description: "Pilot launch helpers (checklist + health snapshot export)",
+      },
+      subCommands: {
+        checklist: defineCommand({
+          meta: { description: "Run a pilot readiness checklist for the active instance" },
+          args: {
+            json: {
+              type: "boolean",
+              description: "Print machine-readable output",
+              default: false,
+            },
+          },
+          async run({ args }) {
+            const activeInstance = await getActiveInstance();
+            if (!activeInstance) {
+              clack.log.error("No active instance found. Run 'hatchling init' first.");
+              process.exit(1);
+            }
+            const instancePath = getInstancePath(activeInstance);
+            const snapshot = await buildPilotSnapshot(activeInstance, instancePath);
+            const checklist = evaluatePilotChecklist(snapshot);
+            const ok = checklist.every((item) => item.passed);
+
+            if (args.json) {
+              console.log(JSON.stringify({ ok, checklist, generatedAt: snapshot.generatedAt }, null, 2));
+            } else {
+              clack.intro("🚀 Pilot Checklist");
+              checklist.forEach((item) => {
+                clack.log.message(`${item.passed ? "✅" : "❌"} ${item.key}: ${item.description}`);
+              });
+              clack.outro(ok ? "Pilot checklist passed." : "Pilot checklist has blocking items.");
+            }
+
+            if (!ok) process.exit(1);
+          },
+        }),
+        snapshot: defineCommand({
+          meta: { description: "Export a machine-readable pilot health snapshot artifact" },
+          args: {
+            json: {
+              type: "boolean",
+              description: "Print machine-readable output",
+              default: false,
+            },
+            out: {
+              type: "string",
+              description: "Optional output path for snapshot JSON",
+            },
+            strict: {
+              type: "boolean",
+              description: "Exit non-zero when doctor/checklist has blocking items",
+              default: false,
+            },
+          },
+          async run({ args }) {
+            const activeInstance = await getActiveInstance();
+            if (!activeInstance) {
+              clack.log.error("No active instance found. Run 'hatchling init' first.");
+              process.exit(1);
+            }
+            const instancePath = getInstancePath(activeInstance);
+            const snapshot = await buildPilotSnapshot(activeInstance, instancePath);
+            const checklist = evaluatePilotChecklist(snapshot);
+            const checklistOk = checklist.every((item) => item.passed);
+            const payload = { ...snapshot, checklist, checklistOk };
+
+            const defaultPath = join(
+              instancePath,
+              "memory",
+              "pilot",
+              `snapshot-${new Date().toISOString().replaceAll(":", "-")}.json`,
+            );
+            const outPath = args.out ? resolve(String(args.out)) : defaultPath;
+            await mkdir(dirname(outPath), { recursive: true });
+            await writeFile(outPath, JSON.stringify(payload, null, 2), "utf-8");
+
+            if (args.json) {
+              console.log(JSON.stringify({ ok: true, path: outPath, checklistOk }, null, 2));
+            } else {
+              clack.log.success(`Pilot snapshot written: ${outPath}`);
+              clack.log.info(`Checklist status: ${checklistOk ? "pass" : "blocking items"}`);
+            }
+
+            if (Boolean(args.strict) && !checklistOk) {
+              process.exit(1);
+            }
+          },
+        }),
       },
     }),
   },

@@ -280,6 +280,21 @@ node tests/overnightSoak.mjs --hours 8 --intervalSec 300 --keepHome
 
 The soak runner writes a report to `memory/soak/overnight-soak-*.json` with per-cycle command outcomes and failures.
 
+### Pilot Launch Helpers
+
+```bash
+# Run pilot readiness checklist for active instance
+hatchling pilot checklist --json
+
+# Export a complete pilot health snapshot artifact
+hatchling pilot snapshot --json
+
+# Fail CI/automation when checklist has blocking items
+hatchling pilot snapshot --strict --json
+```
+
+For operational rollout guidance, see `PILOT_GUIDE.md`.
+
 ### Directory Structure
 
 ```
