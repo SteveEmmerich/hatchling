@@ -15,6 +15,7 @@ import {
   setActiveInstance,
   listInstances,
   deleteInstance,
+  getGermlinePath,
   getInstancePath,
 } from "./system/instance.js";
 import { germinate, isHindbrainAvailable } from "./brain/hindbrain.js";
@@ -603,11 +604,24 @@ const main = defineCommand({
           return;
         }
 
-        const defaultCommand = process.platform === "win32" ? "npx.cmd" : "npx";
+        const localPiBinary = resolve(
+          getGermlinePath(),
+          "node_modules",
+          ".bin",
+          process.platform === "win32" ? "pi.cmd" : "pi",
+        );
+        const hasLocalPiBinary = existsSync(localPiBinary);
+        const defaultCommand = hasLocalPiBinary
+          ? localPiBinary
+          : process.platform === "win32"
+            ? "npx.cmd"
+            : "npx";
         const command = args.daemonCommand ? String(args.daemonCommand) : defaultCommand;
         const commandArgs = args.daemonCommand
           ? (args.daemonArgs ? String(args.daemonArgs).split(/\s+/).filter(Boolean) : [])
-          : ["pi", "--extension", extensionPath];
+          : hasLocalPiBinary
+            ? ["--extension", extensionPath]
+            : ["--no-install", "pi", "--extension", extensionPath];
 
         if (args.daemon) {
           const existing = await readDaemonState(instancePath);
