@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY package.json package-lock.json tsconfig.json ./
 COPY patches ./patches
-RUN npm ci
+RUN npm install --ignore-scripts
 
 COPY src ./src
 COPY brain ./brain
@@ -22,6 +22,7 @@ COPY projects ./projects
 COPY memory ./memory
 COPY bin ./bin
 COPY README.md IMPLEMENTATION_STATUS.md RELEASE_CHECKLIST.md PILOT_GUIDE.md PILOT_QUICKSTART.md ./
+RUN npx patch-package
 RUN npm run build
 
 FROM node:20-bookworm-slim AS runtime
@@ -31,9 +32,15 @@ ENV NODE_ENV=production
 ENV HATCHLING_HOME=/data
 ENV HATCHLING_HINDBRAIN_BACKEND=cpu
 
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  git \
+  && rm -rf /var/lib/apt/lists/*
+
 COPY --from=build /app/package.json /app/package-lock.json ./
+COPY --from=build /app/tsconfig.json ./tsconfig.json
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
+COPY --from=build /app/src ./src
 COPY --from=build /app/bin ./bin
 COPY --from=build /app/brain ./brain
 COPY --from=build /app/limbs ./limbs
