@@ -29,26 +29,31 @@ const STOP_WORDS = new Set([
   "with",
 ]);
 
-function sanitizeName(value: string): string {
+function toNameTokens(value: string): string[] {
   return value
-    .trim()
     .toLowerCase()
-    .replace(/['"`]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9_-]/g, "")
-    .slice(0, 50);
+    .replace(/[^a-z0-9\s_-]/g, " ")
+    .split(/[\s_-]+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 2)
+    .filter((token) => !STOP_WORDS.has(token));
+}
+
+export function normalizeNameCandidate(value: string): string {
+  const tokens = toNameTokens(value).slice(0, 3);
+  return tokens.join("-").slice(0, 50);
 }
 
 function extractName(text: string): string | undefined {
   const patterns = [
-    /\bname(?:\s+it)?\s+([a-zA-Z0-9_-]{2,50})\b/i,
-    /\bcall(?:\s+it)?\s+([a-zA-Z0-9_-]{2,50})\b/i,
-    /\bit(?:'s| is)\s+([a-zA-Z0-9_-]{2,50})\b/i,
+    /\bname(?:\s+it)?(?:\s+is)?\s+([a-zA-Z0-9 _-]{2,50})\b/i,
+    /\bcall(?:\s+it)?\s+([a-zA-Z0-9 _-]{2,50})\b/i,
+    /\bnamed\s+([a-zA-Z0-9 _-]{2,50})\b/i,
   ];
   for (const pattern of patterns) {
     const match = text.match(pattern);
     if (!match || !match[1]) continue;
-    const name = sanitizeName(match[1]);
+    const name = normalizeNameCandidate(match[1]);
     if (name) return name;
   }
   return undefined;
@@ -56,7 +61,10 @@ function extractName(text: string): string | undefined {
 
 function cleanupPurpose(value: string): string {
   return value
+    .replace(/[$#@!%^&*+=~`|\\/<>{}\[\]]+/g, " ")
     .replace(/\s+/g, " ")
+    .replace(/^\W+/, "")
+    .replace(/^be\s+/i, "To be ")
     .replace(/^to\s+/i, "To ")
     .trim();
 }
@@ -65,7 +73,7 @@ function extractPurpose(text: string): string | undefined {
   const patterns = [
     /\bpurpose(?:\s+is)?[:\s]+(.+)/i,
     /\b(?:it|this hatchling)\s+should\s+(.+)/i,
-    /\b(?:to|for)\s+([^.!\n]+)/i,
+    /\b(?:to|for)\s+([^\n]+)/i,
   ];
   for (const pattern of patterns) {
     const match = text.match(pattern);
@@ -106,6 +114,10 @@ function extractTraits(text: string): string[] {
 export function parsePersonalityInput(input: string): string[] {
   const traits = tokenizeTraits(input);
   return [...new Set(traits)].slice(0, 8);
+}
+
+export function suggestNameFromText(input: string): string | undefined {
+  return normalizeNameCandidate(input);
 }
 
 export function inferIdentityFromNarrative(input: string): Partial<Identity> {

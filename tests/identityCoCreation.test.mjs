@@ -1,7 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { inferIdentityFromNarrative, parsePersonalityInput } from "../dist/system/identity-co-creation.js";
+import {
+  inferIdentityFromNarrative,
+  normalizeNameCandidate,
+  parsePersonalityInput,
+  suggestNameFromText,
+} from "../dist/system/identity-co-creation.js";
 
 test("inferIdentityFromNarrative extracts name, purpose, and personality from free-form input", () => {
   const inferred = inferIdentityFromNarrative(
@@ -21,4 +26,19 @@ test("inferIdentityFromNarrative returns partial data when only purpose is provi
 test("parsePersonalityInput normalizes and deduplicates trait lists", () => {
   const traits = parsePersonalityInput("Curious and precise, curious, empathetic");
   assert.deepEqual(traits, ["curious", "precise", "empathetic"]);
+});
+
+test("inferIdentityFromNarrative does not infer a literal noisy name from purpose-like text", () => {
+  const inferred = inferIdentityFromNarrative("to be $#@! useful");
+  assert.equal(inferred.name, undefined);
+  assert.equal(inferred.purpose, "To be useful");
+});
+
+test("normalizeNameCandidate removes noise and stop words", () => {
+  assert.equal(normalizeNameCandidate("to be $#@! useful"), "useful");
+  assert.equal(normalizeNameCandidate("  Name it   Ember Core  "), "ember-core");
+});
+
+test("suggestNameFromText derives compact practical name seeds", () => {
+  assert.equal(suggestNameFromText("To help with incident response and release coordination"), "incident-response-release");
 });

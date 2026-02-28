@@ -6,7 +6,22 @@
 import { initializeHindbrain, shutdown, generateResponse } from "../brain/hindbrain.js";
 import * as clack from "@clack/prompts";
 import { safeParseIdentity, type Identity } from "./identity-schema.js";
-import { inferIdentityFromNarrative, parsePersonalityInput } from "./identity-co-creation.js";
+import {
+  inferIdentityFromNarrative,
+  normalizeNameCandidate,
+  parsePersonalityInput,
+  suggestNameFromText,
+} from "./identity-co-creation.js";
+
+function preferPracticalPrompt(candidate: string, fallback: string): string {
+  const normalized = String(candidate || "").replace(/\s+/g, " ").trim();
+  if (!normalized) return fallback;
+  if (normalized.length > 220) return fallback;
+  if (/\b(hero|villain|character|lore|story|family name|fiction)\b/i.test(normalized)) {
+    return fallback;
+  }
+  return normalized;
+}
 
 export async function runHindbrainDiscovery(): Promise<Identity> {
   console.log("🧠 Using internal Hindbrain for discovery...");
@@ -23,11 +38,16 @@ export async function runHindbrainDiscovery(): Promise<Identity> {
 
   const intro = hindbrainReady
     ? await generateResponse(
-        "Greet the user warmly. Ask them to describe who this hatchling is becoming, including name, purpose, and personality if possible. Keep it conversational.",
+        "Greet the user warmly. Ask one concise question that helps co-create this hatchling's identity in practical terms: short name, real-world purpose, and personality. Avoid roleplay/fantasy framing.",
       )
     : "Hi, I am your hatchling's hindbrain. Tell me who this hatchling is becoming. You can include a name, purpose, and personality.";
 
-  clack.log.message(`🤖 ${intro}`);
+  clack.log.message(
+    `🤖 ${preferPracticalPrompt(
+      intro,
+      "Hi, I am your hatchling's hindbrain. Tell me who this hatchling is becoming. You can include a short name, purpose, and personality.",
+    )}`,
+  );
 
   const identityNarrative = await clack.text({
     message: "You",
@@ -45,9 +65,11 @@ export async function runHindbrainDiscovery(): Promise<Identity> {
 
   if (!draftName) {
     const nameQuestion = hindbrainReady
-      ? await generateResponse("Ask for a concise agent name. Keep it warm and collaborative.")
+      ? await generateResponse("Ask for a short practical name (1-2 words). Do not use story/fantasy framing.")
       : "What should we call this hatchling?";
-    clack.log.message(`🤖 ${nameQuestion}`);
+    clack.log.message(
+      `🤖 ${preferPracticalPrompt(nameQuestion, "What should we call this hatchling? Keep it short.")}`,
+    );
 
     const nameResponse = await clack.text({
       message: "You",
@@ -58,16 +80,21 @@ export async function runHindbrainDiscovery(): Promise<Identity> {
       throw new Error("Discovery cancelled by user");
     }
     const inferredName = inferIdentityFromNarrative(String(nameResponse)).name;
-    draftName = inferredName || String(nameResponse).trim().toLowerCase().replace(/\s+/g, "-");
+    draftName = inferredName || normalizeNameCandidate(String(nameResponse));
   }
 
   if (!draftPurpose) {
     const purposeQuestion = hindbrainReady
       ? await generateResponse(
-          `Ask about the purpose of an agent named "${draftName || "this hatchling"}". Sound collaborative.`,
+          `Ask for a one-sentence practical purpose for an agent named "${draftName || "this hatchling"}".`,
         )
       : "What is this hatchling's purpose?";
-    clack.log.message(`🤖 ${purposeQuestion}`);
+    clack.log.message(
+      `🤖 ${preferPracticalPrompt(
+        purposeQuestion,
+        `What is ${draftName || "this hatchling"} meant to do in real use? One sentence is enough.`,
+      )}`,
+    );
 
     const purposeResponse = await clack.text({
       message: "You",
@@ -83,9 +110,16 @@ export async function runHindbrainDiscovery(): Promise<Identity> {
 
   if (!draftPersonality.length) {
     const personalityQuestion = hindbrainReady
-      ? await generateResponse("Ask for personality traits as a short comma-separated list. Sound encouraging.")
+      ? await generateResponse(
+          "Ask for 3-5 practical personality traits as a comma-separated list (example: curious, direct, calm).",
+        )
       : "What personality traits should it have? (comma-separated)";
-    clack.log.message(`🤖 ${personalityQuestion}`);
+    clack.log.message(
+      `🤖 ${preferPracticalPrompt(
+        personalityQuestion,
+        "What personality traits should it have? Use 3-5 comma-separated traits.",
+      )}`,
+    );
 
     const personalityResponse = await clack.text({
       message: "You",
@@ -98,7 +132,9 @@ export async function runHindbrainDiscovery(): Promise<Identity> {
     draftPersonality = parsePersonalityInput(String(personalityResponse));
   }
 
-  const defaultName = (draftName || "hatchling").trim().toLowerCase().replace(/\s+/g, "-");
+  const defaultName = normalizeNameCandidate(draftName || "")
+    || suggestNameFromText(draftPurpose || "")
+    || "hatchling";
   const suggestedNames = [defaultName, `${defaultName}-core`, `${defaultName}-agent`].filter(Boolean);
 
   clack.log.message("");
@@ -171,7 +207,12 @@ export async function runHindbrainDiscovery(): Promise<Identity> {
         await shutdown().catch(() => {});
         throw new Error("Discovery cancelled by user");
       }
-      identityData.name = String(next).trim().toLowerCase();
+      const revised = normalizeNameCandidate(String(next));
+      if (!revised) {
+        clack.log.warn("Name must include letters or numbers. Keeping current name.");
+      } else {
+        identityData.name = revised;
+      }
     } else if (revise === "purpose") {
       const next = await clack.text({
         message: "Enter revised purpose",
