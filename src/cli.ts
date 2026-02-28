@@ -94,6 +94,21 @@ function isProcessRunning(pid: number): boolean {
   }
 }
 
+async function runCliSubcommand(command: string, args: string[] = []): Promise<number> {
+  const cliEntrypoint = process.argv[1];
+  if (!cliEntrypoint) return 1;
+  return await new Promise<number>((resolve) => {
+    const child = spawn(process.execPath, [cliEntrypoint, command, ...args], {
+      stdio: "inherit",
+      shell: false,
+      cwd: process.cwd(),
+      env: process.env,
+    });
+    child.on("error", () => resolve(1));
+    child.on("close", (code) => resolve(code ?? 1));
+  });
+}
+
 async function runDoctorChecks(): Promise<{ checks: DoctorCheck[]; ok: boolean }> {
   const checks: DoctorCheck[] = [];
   const nodeMajor = Number(process.versions.node.split(".")[0] || "0");
@@ -536,14 +551,33 @@ const main = defineCommand({
         clack.intro("🐣 Starting Hatchling");
 
         // Detect active instance
-        const activeInstance = await getActiveInstance();
-
+        let activeInstance = await getActiveInstance();
         if (!activeInstance) {
-          clack.log.error("No active Hatchling instance found.");
-          clack.log.info(
-            "Run 'hatchling init' to create one, or 'hatchling use <name>' to activate an instance."
-          );
-          process.exit(1);
+          if (args.stopDaemon || args.daemonStatus) {
+            clack.log.error("No active Hatchling instance found.");
+            clack.log.info(
+              "Run 'hatchling init' to create one, or 'hatchling use <name>' to activate an instance."
+            );
+            process.exit(1);
+          }
+          if (!process.stdin.isTTY || !process.stdout.isTTY) {
+            clack.log.error("No active Hatchling instance found and auto-init needs an interactive terminal.");
+            clack.log.info(
+              "Run 'hatchling init --nonInteractive --provider hindbrain --model hindbrain-1b --name <name>' first."
+            );
+            process.exit(1);
+          }
+          clack.log.warn("No active Hatchling instance found. Running initialization first...");
+          const initCode = await runCliSubcommand("init");
+          if (initCode !== 0) {
+            clack.log.error("Initialization failed. Cannot continue start.");
+            process.exit(initCode);
+          }
+          activeInstance = await getActiveInstance();
+          if (!activeInstance) {
+            clack.log.error("Initialization completed but no active instance is set.");
+            process.exit(1);
+          }
         }
 
         const instancePath = getInstancePath(activeInstance);
