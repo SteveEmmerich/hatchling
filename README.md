@@ -24,6 +24,32 @@ npm install
 npm link
 ```
 
+## 🐳 Docker Sandbox
+
+```bash
+# Build local image
+npm run docker:build
+
+# Run one-off health check in isolated volume
+npm run docker:doctor
+
+# Initialize a sandbox instance in container volume
+npm run docker:init
+
+# Open interactive hatchling CLI in container
+npm run docker:run -- doctor --json
+npm run docker:run -- start --daemon
+```
+
+Using Compose:
+
+```bash
+docker compose up --build hatchling
+docker compose run --rm hatchling init --non-interactive --name sandbox --purpose "Sandboxed hatchling" --personality "curious,direct"
+```
+
+All sandbox state is persisted in Docker volume `hatchling_data` under `/data` inside the container.
+
 ## 📖 Usage
 
 ### First Time Setup

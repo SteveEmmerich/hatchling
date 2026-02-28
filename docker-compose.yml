@@ -1,0 +1,18 @@
+services:
+  hatchling:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: hatchling-core:local
+    container_name: hatchling-sandbox
+    environment:
+      HATCHLING_HOME: /data
+      HATCHLING_HINDBRAIN_BACKEND: cpu
+    volumes:
+      - hatchling_data:/data
+    stdin_open: true
+    tty: true
+    command: ["doctor", "--json"]
+
+volumes:
+  hatchling_data:

@@ -1,0 +1,11 @@
+.git
+.gitignore
+node_modules
+dist
+.tmp*
+memory/soak
+memory/telemetry
+memory/backups
+*.log
+*.tmp
+*.bundle
