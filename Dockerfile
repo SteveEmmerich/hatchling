@@ -51,7 +51,7 @@ COPY --from=build /app/memory ./memory
 RUN npm prune --omit=dev
 
 COPY docker/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+RUN chmod +x /entrypoint.sh /app/bin/hatchling
 
 RUN mkdir -p /data && chown -R node:node /app /data
 USER node
