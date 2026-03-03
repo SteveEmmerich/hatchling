@@ -23,6 +23,29 @@ function preferPracticalPrompt(candidate: string, fallback: string): string {
   return normalized;
 }
 
+function looksLikeNameDeferral(value: string): boolean {
+  return /\b(what do you think|you decide|name yourself|pick a name|you choose|what should (it|we) call)\b/i.test(
+    value,
+  );
+}
+
+function looksLikeQuestion(value: string): boolean {
+  return /\?$/.test(value.trim()) || /^(what|who|why|how|can|could|would|should)\b/i.test(value.trim());
+}
+
+function proposeNameOptions(purpose: string, personality: string[]): string[] {
+  const seeds = [
+    suggestNameFromText(purpose || ""),
+    ...personality.map((trait) => normalizeNameCandidate(trait)),
+    "hatchling",
+  ].filter(Boolean) as string[];
+
+  const primary = seeds[0] || "hatchling";
+  const compact = normalizeNameCandidate(primary) || "hatchling";
+  const options = [compact, `${compact}-core`, `${compact}-agent`];
+  return [...new Set(options)].slice(0, 3);
+}
+
 export async function runHindbrainDiscovery(): Promise<Identity> {
   console.log("🧠 Using internal Hindbrain for discovery...");
 
@@ -79,8 +102,15 @@ export async function runHindbrainDiscovery(): Promise<Identity> {
       await shutdown().catch(() => {});
       throw new Error("Discovery cancelled by user");
     }
-    const inferredName = inferIdentityFromNarrative(String(nameResponse)).name;
-    draftName = inferredName || normalizeNameCandidate(String(nameResponse));
+    const rawNameResponse = String(nameResponse).trim();
+    const inferredName = inferIdentityFromNarrative(rawNameResponse).name;
+    if (looksLikeNameDeferral(rawNameResponse) || looksLikeQuestion(rawNameResponse)) {
+      const options = proposeNameOptions(draftPurpose || "", draftPersonality || []);
+      clack.log.message(`🤖 I can name myself. How about: ${options.map((n) => `"${n}"`).join(", ")}?`);
+      draftName = options[0];
+    } else {
+      draftName = inferredName || normalizeNameCandidate(rawNameResponse);
+    }
   }
 
   if (!draftPurpose) {
@@ -130,6 +160,20 @@ export async function runHindbrainDiscovery(): Promise<Identity> {
       throw new Error("Discovery cancelled by user");
     }
     draftPersonality = parsePersonalityInput(String(personalityResponse));
+    if (!draftPersonality.length) {
+      clack.log.message(
+        "🤖 I didn't catch clean traits there. Give me 3-5 short traits like: curious, practical, calm",
+      );
+      const retryPersonality = await clack.text({
+        message: "You",
+        placeholder: "curious, practical, calm",
+      });
+      if (clack.isCancel(retryPersonality)) {
+        await shutdown().catch(() => {});
+        throw new Error("Discovery cancelled by user");
+      }
+      draftPersonality = parsePersonalityInput(String(retryPersonality));
+    }
   }
 
   const defaultName = normalizeNameCandidate(draftName || "")

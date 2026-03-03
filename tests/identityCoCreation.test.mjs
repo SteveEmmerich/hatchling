@@ -28,6 +28,11 @@ test("parsePersonalityInput normalizes and deduplicates trait lists", () => {
   assert.deepEqual(traits, ["curious", "precise", "empathetic"]);
 });
 
+test("parsePersonalityInput ignores long conversational sentences", () => {
+  const traits = parsePersonalityInput("no I want you to name yourself based on our discussion");
+  assert.deepEqual(traits, []);
+});
+
 test("inferIdentityFromNarrative does not infer a literal noisy name from purpose-like text", () => {
   const inferred = inferIdentityFromNarrative("to be $#@! useful");
   assert.equal(inferred.name, undefined);

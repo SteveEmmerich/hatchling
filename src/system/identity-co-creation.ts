@@ -27,6 +27,16 @@ const STOP_WORDS = new Set([
   "to",
   "we",
   "with",
+  "you",
+  "your",
+  "yourself",
+  "what",
+  "want",
+  "based",
+  "discussion",
+  "think",
+  "self",
+  "no",
 ]);
 
 function toNameTokens(value: string): string[] {
@@ -112,7 +122,13 @@ function extractTraits(text: string): string[] {
 }
 
 export function parsePersonalityInput(input: string): string[] {
-  const traits = tokenizeTraits(input);
+  const raw = input.trim();
+  if (!raw) return [];
+  const wordCount = raw.split(/\s+/).filter(Boolean).length;
+  const isStructured = /,|\/|\band\b|\bbut\b/i.test(raw);
+  // Prevent long conversational replies from being mistaken as trait lists.
+  if (!isStructured && wordCount > 5) return [];
+  const traits = tokenizeTraits(raw);
   return [...new Set(traits)].slice(0, 8);
 }
 
