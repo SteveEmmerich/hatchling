@@ -3,6 +3,7 @@ import { createInstance, setActiveInstance } from "./instance.js";
 import { generateDNAFiles } from "./dna-generator.js";
 import { basename, join } from "path";
 import type { Identity } from "./identity-schema.js";
+import { ensureCuriosityState } from "../curiosity/curiosity_engine.js";
 
 export interface OnboardOptions {
   provider: string;
@@ -34,6 +35,7 @@ export async function runSelfDiscovery(
     // Write the discovered identity to the instance
     const brainDir = join(instanceDir, "brain");
     await generateDNAFiles(brainDir, identity);
+    await ensureCuriosityState(instanceDir);
 
     return instanceDir;
   } catch (error) {

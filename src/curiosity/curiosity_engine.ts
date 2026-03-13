@@ -25,13 +25,15 @@ export interface CuriosityOptions {
 
 export const CURIOSITY_STATE_FILE = "brain/curiosity.json";
 
-const DEFAULT_STATE: CuriosityState = {
-  curiosity: 5,
-  exploration_bias: 0.4,
-  learning_bias: 0.35,
-  mutation_bias: 0.25,
-  last_exploration: undefined,
-};
+function defaultCuriosityState(now: Date = new Date()): CuriosityState {
+  return {
+    curiosity: 5,
+    exploration_bias: 0.4,
+    learning_bias: 0.35,
+    mutation_bias: 0.25,
+    last_exploration: now.toISOString(),
+  };
+}
 
 function clamp(value: number, min: number, max: number): number {
   if (!Number.isFinite(value)) return min;
@@ -41,6 +43,38 @@ function clamp(value: number, min: number, max: number): number {
 function normalizeBias(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, value);
+}
+
+function sanitizeCuriosityState(input: unknown, now: Date = new Date()): { state: CuriosityState; repaired: boolean } {
+  if (!input || typeof input !== "object") {
+    return { state: defaultCuriosityState(now), repaired: true };
+  }
+  const record = input as Record<string, unknown>;
+  const curiosity = clamp(Number(record.curiosity ?? 5), 0, 10);
+  const exploration_bias = normalizeBias(Number(record.exploration_bias ?? 0.4));
+  const learning_bias = normalizeBias(Number(record.learning_bias ?? 0.35));
+  const mutation_bias = normalizeBias(Number(record.mutation_bias ?? 0.25));
+  const last_exploration =
+    typeof record.last_exploration === "string" && record.last_exploration.trim()
+      ? record.last_exploration
+      : now.toISOString();
+
+  const state: CuriosityState = {
+    curiosity,
+    exploration_bias,
+    learning_bias,
+    mutation_bias,
+    last_exploration,
+  };
+
+  const repaired =
+    curiosity !== Number(record.curiosity) ||
+    exploration_bias !== Number(record.exploration_bias) ||
+    learning_bias !== Number(record.learning_bias) ||
+    mutation_bias !== Number(record.mutation_bias) ||
+    last_exploration !== record.last_exploration;
+
+  return { state, repaired };
 }
 
 function scoreBiases(state: CuriosityState): Array<{ kind: CuriosityTaskKind; score: number }> {
@@ -121,19 +155,13 @@ function energyCostForKind(kind: CuriosityTaskKind): number {
 export async function loadCuriosityState(rootDir: string): Promise<CuriosityState> {
   const target = path.join(rootDir, CURIOSITY_STATE_FILE);
   if (!existsSync(target)) {
-    return { ...DEFAULT_STATE };
+    return defaultCuriosityState();
   }
   try {
-    const parsed = JSON.parse(await fs.readFile(target, "utf-8")) as Partial<CuriosityState>;
-    return {
-      curiosity: clamp(Number(parsed.curiosity ?? DEFAULT_STATE.curiosity), 0, 10),
-      exploration_bias: normalizeBias(Number(parsed.exploration_bias ?? DEFAULT_STATE.exploration_bias)),
-      learning_bias: normalizeBias(Number(parsed.learning_bias ?? DEFAULT_STATE.learning_bias)),
-      mutation_bias: normalizeBias(Number(parsed.mutation_bias ?? DEFAULT_STATE.mutation_bias)),
-      last_exploration: parsed.last_exploration,
-    };
+    const parsed = JSON.parse(await fs.readFile(target, "utf-8"));
+    return sanitizeCuriosityState(parsed).state;
   } catch {
-    return { ...DEFAULT_STATE };
+    return defaultCuriosityState();
   }
 }
 
@@ -142,6 +170,26 @@ export async function saveCuriosityState(rootDir: string, state: CuriosityState)
   const target = await PathGuard.validatePath(CURIOSITY_STATE_FILE, "write");
   await fs.mkdir(path.dirname(target), { recursive: true });
   await fs.writeFile(target, JSON.stringify(state, null, 2), "utf-8");
+}
+
+export async function ensureCuriosityState(rootDir: string, options: CuriosityOptions = {}): Promise<CuriosityState> {
+  const now = options.now ? options.now() : new Date();
+  const target = path.join(rootDir, CURIOSITY_STATE_FILE);
+  let parsed: unknown = null;
+  let exists = false;
+  if (existsSync(target)) {
+    exists = true;
+    try {
+      parsed = JSON.parse(await fs.readFile(target, "utf-8"));
+    } catch {
+      parsed = null;
+    }
+  }
+  const { state, repaired } = sanitizeCuriosityState(parsed, now);
+  if (!exists || repaired) {
+    await saveCuriosityState(rootDir, state);
+  }
+  return state;
 }
 
 export async function generateCuriosityTasks(
