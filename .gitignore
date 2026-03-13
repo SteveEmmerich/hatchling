@@ -3,6 +3,7 @@ node_modules/
 .DS_Store
 daemon.pid
 *.tmp
+.tmp-test-*
 memory/telemetry/
 memory/backups/
 memory/

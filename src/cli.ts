@@ -2171,7 +2171,7 @@ const main = defineCommand({
         }
         clack.log.message(`🧬 Organism tick @ ${result.ranAt}`);
         clack.log.message(`Energy: ${result.energy.level}/100 (low=${result.energy.lowEnergy})`);
-        clack.log.message(exposeSelectedTask(result.selectedTask));
+        clack.log.message(exposeSelectedTask(result.selectedTask, result.energy.level));
       },
     }),
 

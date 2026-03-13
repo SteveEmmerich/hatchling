@@ -14,6 +14,7 @@ export interface Task {
   goal: string;
   priority: number;
   energyCost: number;
+  minEnergyRequired: number;
   createdAt: string;
 }
 
@@ -22,6 +23,7 @@ export interface TaskInput {
   goal: string;
   priority: number;
   energyCost: number;
+  minEnergyRequired?: number;
   createdAt?: string;
   id?: string;
 }
@@ -45,6 +47,13 @@ export function createTask(input: TaskInput): Task {
   }
   const priority = clamp(Number(input.priority), 0, 10);
   const energyCost = clamp(Number(input.energyCost), 0, 10);
+  const minEnergyRequired = clamp(
+    Number(
+      input.minEnergyRequired ?? (type === "sleep_task" ? 0 : Math.round(energyCost * 10)),
+    ),
+    0,
+    100,
+  );
   const createdAt = input.createdAt ? new Date(input.createdAt).toISOString() : new Date().toISOString();
   const id = input.id || crypto.randomUUID();
 
@@ -54,6 +63,7 @@ export function createTask(input: TaskInput): Task {
     goal,
     priority,
     energyCost,
+    minEnergyRequired,
     createdAt,
   };
 }

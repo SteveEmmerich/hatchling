@@ -14,6 +14,7 @@ test("task creation validates required fields", async () => {
   assert.equal(task.goal, "Respond to user query");
   assert.equal(task.priority, 7);
   assert.equal(task.energyCost, 3);
+  assert.equal(task.minEnergyRequired, 30);
   assert.ok(task.id);
   assert.ok(task.createdAt);
 
@@ -44,11 +45,11 @@ test("task scoring orders by priority and penalties", async () => {
 
   const highPriority = createTask({ type: "user_task", goal: "High", priority: 9, energyCost: 5 });
   const lowPriority = createTask({ type: "project_task", goal: "Low", priority: 3, energyCost: 1 });
-  const scoredHigh = scoreTask(highPriority);
-  const scoredLow = scoreTask(lowPriority);
+  const scoredHigh = scoreTask(highPriority, 100);
+  const scoredLow = scoreTask(lowPriority, 100);
   assert.ok(scoredHigh > scoredLow);
 
-  const ordered = sortTasksByScore([lowPriority, highPriority]);
+  const ordered = sortTasksByScore([lowPriority, highPriority], 100);
   assert.equal(ordered[0].id, highPriority.id);
 });
 
