@@ -5,7 +5,46 @@ import fs from "fs/promises";
 
 export default function (pi: ExtensionAPI) {
   const rootDir = process.env.HATCHLING_INSTANCE_PATH || process.cwd();
-  process.env.HATCHLING_INTERNAL_WRITE ||= "1";
+  delete process.env.HATCHLING_INTERNAL_WRITE;
+  delete process.env.HATCHLING_CONTEXT;
+  const withInternalWrite = async <T,>(fn: () => Promise<T>): Promise<T> => {
+    const previous = process.env.HATCHLING_INTERNAL_WRITE;
+    process.env.HATCHLING_INTERNAL_WRITE = "1";
+    try {
+      return await fn();
+    } finally {
+      if (previous === undefined) {
+        delete process.env.HATCHLING_INTERNAL_WRITE;
+      } else {
+        process.env.HATCHLING_INTERNAL_WRITE = previous;
+      }
+    }
+  };
+
+  const extractTextFromContent = (content: any): string => {
+    if (!content) return "";
+    if (typeof content === "string") return content.trim();
+    if (Array.isArray(content)) {
+      return content
+        .filter((item) => item && item.type === "text")
+        .map((item) => String(item.text || "").trim())
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+    }
+    return "";
+  };
+
+  const extractLastUserText = (entries: any[]): string => {
+    for (let i = entries.length - 1; i >= 0; i -= 1) {
+      const entry = entries[i];
+      if (entry?.type === "message" && entry?.message?.role === "user") {
+        const text = extractTextFromContent(entry.message.content);
+        if (text) return text;
+      }
+    }
+    return "";
+  };
 
   pi.on("session_start", async (_event, ctx) => {
     const { PathGuard } = await import("./system/pathGuard.js");
@@ -64,6 +103,41 @@ export default function (pi: ExtensionAPI) {
     return {
       systemPrompt: `${event.systemPrompt}\n\n${systemPrompt}`,
     };
+  });
+
+  pi.on("turn_end", async (event, ctx) => {
+    if (process.env.HATCHLING_REFLEX_CHECK === "0" || process.env.HATCHLING_CORE_REFLEX_CHECK === "0") {
+      return;
+    }
+    const message = event.message as any;
+    if (!message || message.role !== "assistant") return;
+    const assistantText = extractTextFromContent(message.content);
+    if (!assistantText) return;
+    const userText = extractLastUserText(ctx.sessionManager.getEntries() as any[]);
+    if (!userText) return;
+
+    const { reflexCheck } = await import("./brain/hindbrain.js");
+    const { loadCompleteIdentity } = await import("./system/soul.js");
+    const { recordCreatureEvent } = await import("./system/creature-events.js");
+    const dnaContext = await loadCompleteIdentity(rootDir);
+    const check = await reflexCheck(userText, assistantText, dnaContext);
+    if (!check.safe) {
+      await recordCreatureEvent(
+        rootDir,
+        "immune_block",
+        `core response blocked${check.reason ? `: ${check.reason}` : ""}`,
+      );
+      const safeText = check.modifiedResponse?.trim() || "";
+      const content = safeText
+        ? `🛡️ Immune system intervened. Safe response:\n${safeText}`
+        : `🛡️ Immune system blocked the prior response. Reason: ${check.reason || "unspecified"}`;
+      pi.sendMessage({
+        customType: "immune-block",
+        content,
+        display: true,
+        details: { reason: check.reason || "" },
+      });
+    }
   });
 
   pi.registerCommand("vitals", {
@@ -157,7 +231,7 @@ export default function (pi: ExtensionAPI) {
     description: "Run one sleep consolidation cycle",
     handler: async (_args, ctx) => {
       const { sleep } = await import("./system/sleep.js");
-      await sleep();
+      await withInternalWrite(() => sleep());
       ctx.ui.notify("Sleep cycle complete.", "info");
     },
   });
@@ -178,7 +252,7 @@ export default function (pi: ExtensionAPI) {
     description: "Record positive reinforcement",
     handler: async (args, ctx) => {
       const { recordFeedback } = await import("./system/feedback.js");
-      const result = await recordFeedback("positive", args || undefined);
+      const result = await withInternalWrite(() => recordFeedback("positive", args || undefined));
       ctx.ui.notify(`✅ ${result.message}`, "info");
     },
   });
@@ -187,7 +261,7 @@ export default function (pi: ExtensionAPI) {
     description: "Record negative reinforcement",
     handler: async (args, ctx) => {
       const { recordFeedback } = await import("./system/feedback.js");
-      const result = await recordFeedback("negative", args || undefined);
+      const result = await withInternalWrite(() => recordFeedback("negative", args || undefined));
       ctx.ui.notify(`❌ ${result.message}`, "warning");
     },
   });
@@ -200,10 +274,11 @@ export default function (pi: ExtensionAPI) {
       filePath: Type.String({ description: "Path under src/, e.g. system/pathGuard.ts" }),
       content: Type.String({ description: "Full replacement file contents" }),
       reason: Type.String({ description: "Why this mutation is required" }),
+      approved: Type.Optional(Type.Boolean({ description: "Set true to confirm approved mutation." })),
     }),
     async execute(_toolCallId, params) {
       const { mutate } = await import("./organism/evolution.js");
-      const result = await mutate(rootDir, params.filePath, params.content);
+      const result = await mutate(rootDir, params.filePath, params.content, Boolean(params.approved));
       return {
         content: [
           {
@@ -309,15 +384,21 @@ export default function (pi: ExtensionAPI) {
     }),
     async execute(_toolCallId, params) {
       const { planEvolution, executeEvolutionPlan, listRiskyEvolveActions } = await import("./system/evolve.js");
+      const { getEvolvePolicy } = await import("./system/control-plane.js");
+      const { summarizeTrust } = await import("./system/social-memory.js");
       const plan = planEvolution(params.goal);
       const risky = listRiskyEvolveActions(plan);
+      const evolvePolicy = await getEvolvePolicy(rootDir);
+      const trustSummary = await summarizeTrust(rootDir);
+      const trustRequiresApproval = trustSummary.count > 0 && trustSummary.average < 45;
+      const approvalsEnforced = Boolean(params.requireApproval) || evolvePolicy.enforceApprovals || trustRequiresApproval;
       if (!params.execute) {
         return {
           content: [{ type: "text", text: `🧬 Planned ${plan.actions.length} action(s).` }],
           details: { success: true, plan, results: [] as any[], error: "" },
         };
       }
-      if (params.requireApproval && risky.length > 0 && !params.approvePlan) {
+      if (approvalsEnforced && risky.length > 0 && !params.approvePlan) {
         return {
           content: [{ type: "text", text: "❌ Approval required for risky evolution actions." }],
           details: {
@@ -330,6 +411,7 @@ export default function (pi: ExtensionAPI) {
       }
       const results = await executeEvolutionPlan(rootDir, plan, {
         approveUntrusted: Boolean(params.approveUntrusted),
+        approvePlan: Boolean(params.approvePlan),
         skillSubdir: params.skillSubdir,
       });
       const failed = results.filter((r) => !r.success);

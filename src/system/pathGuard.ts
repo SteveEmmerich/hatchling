@@ -46,7 +46,7 @@ export class PathGuard {
       op === "write" &&
       path.relative(this.rootDir, absolute).startsWith("brain/")
     ) {
-      if (!process.env.HATCHLING_INTERNAL_WRITE)
+      if (!process.env.HATCHLING_INTERNAL_WRITE && process.env.HATCHLING_CONTEXT !== "cli")
         throw new Error("FIREWALL: Brain is protected.");
     }
 

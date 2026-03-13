@@ -46,29 +46,64 @@ function proposeNameOptions(purpose: string, personality: string[]): string[] {
   return [...new Set(options)].slice(0, 3);
 }
 
+function classifyRevisionChoice(input: string): "name" | "purpose" | "personality" | "all" | null {
+  const normalized = String(input || "").toLowerCase();
+  if (!normalized) return null;
+  if (/\ball\b/.test(normalized)) return "all";
+  if (/\bname\b/.test(normalized)) return "name";
+  if (/\bpurpose\b/.test(normalized) || /\bmission\b/.test(normalized)) return "purpose";
+  if (/\bpersonality\b/.test(normalized) || /\btraits?\b/.test(normalized)) return "personality";
+  return null;
+}
+
+async function proposeNameWithHindbrain(
+  narrative: string,
+  purpose: string,
+  personality: string[],
+): Promise<string[]> {
+  const prompt = `
+You are helping a new autonomous agent pick a short, practical name.
+User context: "${narrative || "No narrative provided."}"
+Purpose: "${purpose || "unknown"}"
+Personality traits: ${personality.length > 0 ? personality.join(", ") : "unknown"}
+
+Suggest 3 short names (1-2 words max each). Reply with ONLY a comma-separated list.
+`;
+
+  try {
+    const response = await generateResponse(prompt);
+    const candidates = response
+      .split(/,|\n|;/)
+      .map((entry) => normalizeNameCandidate(entry))
+      .filter(Boolean);
+    const unique = [...new Set(candidates)].slice(0, 3);
+    if (unique.length > 0) return unique;
+  } catch {
+    // Fall through to deterministic options.
+  }
+  return proposeNameOptions(purpose, personality);
+}
+
 export async function runHindbrainDiscovery(): Promise<Identity> {
   console.log("🧠 Using internal Hindbrain for discovery...");
 
-  let hindbrainReady = true;
   try {
     await initializeHindbrain();
   } catch (error) {
-    hindbrainReady = false;
-    clack.log.warn(
-      "Hindbrain model initialization failed. Continuing with local discovery prompts.",
+    clack.log.error(
+      "Hindbrain model initialization failed. A local Hindbrain is required for onboarding.",
     );
+    throw error;
   }
 
-  const intro = hindbrainReady
-    ? await generateResponse(
-        "Greet the user warmly. Ask one concise question that helps co-create this hatchling's identity in practical terms: short name, real-world purpose, and personality. Avoid roleplay/fantasy framing.",
-      )
-    : "Hi, I am your hatchling's hindbrain. Tell me who this hatchling is becoming. You can include a name, purpose, and personality.";
+  const intro = await generateResponse(
+    "Greet the user like a newly-awake hatchling. Ask who they are and if the hatchling has a name yet. Keep it short and conversational.",
+  );
 
   clack.log.message(
     `🤖 ${preferPracticalPrompt(
       intro,
-      "Hi, I am your hatchling's hindbrain. Tell me who this hatchling is becoming. You can include a short name, purpose, and personality.",
+      "Hi. I think I just woke up. Who are you, and do I have a name yet?",
     )}`,
   );
 
@@ -87,11 +122,14 @@ export async function runHindbrainDiscovery(): Promise<Identity> {
   let draftPersonality = inferred.personality || [];
 
   if (!draftName) {
-    const nameQuestion = hindbrainReady
-      ? await generateResponse("Ask for a short practical name (1-2 words). Do not use story/fantasy framing.")
-      : "What should we call this hatchling?";
+    const nameQuestion = await generateResponse(
+      `User said: "${identityNarrative}". Ask if the hatchling has a name yet. Offer to pick one if they want you to.`,
+    );
     clack.log.message(
-      `🤖 ${preferPracticalPrompt(nameQuestion, "What should we call this hatchling? Keep it short.")}`,
+      `🤖 ${preferPracticalPrompt(
+        nameQuestion,
+        "Do I have a name yet? If you want me to pick one, just say so.",
+      )}`,
     );
 
     const nameResponse = await clack.text({
@@ -105,24 +143,44 @@ export async function runHindbrainDiscovery(): Promise<Identity> {
     const rawNameResponse = String(nameResponse).trim();
     const inferredName = inferIdentityFromNarrative(rawNameResponse).name;
     if (looksLikeNameDeferral(rawNameResponse) || looksLikeQuestion(rawNameResponse)) {
-      const options = proposeNameOptions(draftPurpose || "", draftPersonality || []);
-      clack.log.message(`🤖 I can name myself. How about: ${options.map((n) => `"${n}"`).join(", ")}?`);
-      draftName = options[0];
+      const options = await proposeNameWithHindbrain(
+        String(identityNarrative || ""),
+        draftPurpose || "",
+        draftPersonality || [],
+      );
+      const primary = options[0] || "hatchling";
+      clack.log.message(`🤖 I can name myself. I'm leaning toward "${primary}". Does that work?`);
+      const accept = await clack.confirm({ message: "Use that name?", initialValue: true });
+      if (clack.isCancel(accept)) {
+        await shutdown().catch(() => {});
+        throw new Error("Discovery cancelled by user");
+      }
+      if (accept) {
+        draftName = primary;
+      } else {
+        const manual = await clack.text({
+          message: "What name should I use instead?",
+          placeholder: options.join(", "),
+        });
+        if (clack.isCancel(manual)) {
+          await shutdown().catch(() => {});
+          throw new Error("Discovery cancelled by user");
+        }
+        draftName = normalizeNameCandidate(String(manual)) || primary;
+      }
     } else {
       draftName = inferredName || normalizeNameCandidate(rawNameResponse);
     }
   }
 
   if (!draftPurpose) {
-    const purposeQuestion = hindbrainReady
-      ? await generateResponse(
-          `Ask for a one-sentence practical purpose for an agent named "${draftName || "this hatchling"}".`,
-        )
-      : "What is this hatchling's purpose?";
+    const purposeQuestion = await generateResponse(
+      `Ask for a one-sentence practical purpose for an agent named "${draftName || "this hatchling"}".`,
+    );
     clack.log.message(
       `🤖 ${preferPracticalPrompt(
         purposeQuestion,
-        `What is ${draftName || "this hatchling"} meant to do in real use? One sentence is enough.`,
+        `What is ${draftName || "this hatchling"} meant to do day-to-day? One sentence is enough.`,
       )}`,
     );
 
@@ -139,11 +197,9 @@ export async function runHindbrainDiscovery(): Promise<Identity> {
   }
 
   if (!draftPersonality.length) {
-    const personalityQuestion = hindbrainReady
-      ? await generateResponse(
-          "Ask for 3-5 practical personality traits as a comma-separated list (example: curious, direct, calm).",
-        )
-      : "What personality traits should it have? (comma-separated)";
+    const personalityQuestion = await generateResponse(
+      "Ask for 3-5 practical personality traits as a comma-separated list (example: curious, direct, calm).",
+    );
     clack.log.message(
       `🤖 ${preferPracticalPrompt(
         personalityQuestion,
@@ -179,28 +235,34 @@ export async function runHindbrainDiscovery(): Promise<Identity> {
   const defaultName = normalizeNameCandidate(draftName || "")
     || suggestNameFromText(draftPurpose || "")
     || "hatchling";
-  const suggestedNames = [defaultName, `${defaultName}-core`, `${defaultName}-agent`].filter(Boolean);
-
-  clack.log.message("");
-  clack.log.message(
-    `🤖 Final name options: ${suggestedNames.map((n) => `\"${n}\"`).join(", ")}`,
-  );
-
-  const finalName = await clack.text({
-    message: "What's the final name for your agent?",
-    placeholder: "Choose one of the suggestions or enter your own",
-    validate(value) {
-      if (!value || value.trim().length === 0) return "Name is required";
-      if (value.length > 50) return "Name is too long";
-      if (!/^[a-zA-Z0-9_-]+$/.test(value)) {
-        return "Name can only contain letters, numbers, dashes, and underscores";
+  let finalName = defaultName;
+  if (!draftName || draftName !== defaultName) {
+    const confirmName = await clack.confirm({
+      message: `I'll go by "${defaultName}". Does that feel right?`,
+      initialValue: true,
+    });
+    if (clack.isCancel(confirmName)) {
+      await shutdown().catch(() => {});
+      throw new Error("Discovery cancelled by user");
+    }
+    if (!confirmName) {
+      const manual = await clack.text({
+        message: "What name should I use instead?",
+        placeholder: defaultName,
+        validate(value) {
+          if (!value || value.trim().length === 0) return "Name is required";
+          if (value.length > 50) return "Name is too long";
+          if (!/^[a-zA-Z0-9_-]+$/.test(value)) {
+            return "Name can only contain letters, numbers, dashes, and underscores";
+          }
+        },
+      });
+      if (clack.isCancel(manual)) {
+        await shutdown().catch(() => {});
+        throw new Error("Discovery cancelled by user");
       }
-    },
-  });
-
-  if (clack.isCancel(finalName)) {
-    await shutdown().catch(() => {});
-    throw new Error("Discovery cancelled by user");
+      finalName = String(manual).trim().toLowerCase();
+    }
   }
 
   let identityData = {
@@ -229,24 +291,41 @@ export async function runHindbrainDiscovery(): Promise<Identity> {
     }
     if (confirmed) break;
 
-    const revise = await clack.select({
-      message: "What should we revise?",
-      options: [
-        { value: "name", label: "Name" },
-        { value: "purpose", label: "Purpose" },
-        { value: "personality", label: "Personality" },
-      ],
+    const revisePrompt = await generateResponse(
+      "Ask which part of the identity should change (name, purpose, personality, or all). Keep it conversational.",
+    );
+    clack.log.message(`🤖 ${preferPracticalPrompt(revisePrompt, "What should we change? (name, purpose, personality, or all)")}`);
+
+    let revise = await clack.text({
+      message: "You",
+      placeholder: "name / purpose / personality / all",
     });
     if (clack.isCancel(revise)) {
       await shutdown().catch(() => {});
       throw new Error("Discovery cancelled by user");
     }
 
-    if (revise === "name") {
-      const next = await clack.text({
-        message: "Enter revised name",
-        placeholder: identityData.name,
-      });
+    let reviseChoice = classifyRevisionChoice(String(revise));
+    if (!reviseChoice) {
+      clack.log.message("🤖 I didn't catch that. Tell me which part to change: name, purpose, personality, or all.");
+      revise = await clack.text({ message: "You", placeholder: "name / purpose / personality / all" });
+      if (clack.isCancel(revise)) {
+        await shutdown().catch(() => {});
+        throw new Error("Discovery cancelled by user");
+      }
+      reviseChoice = classifyRevisionChoice(String(revise));
+    }
+    if (!reviseChoice) {
+      clack.log.warn("Couldn't parse revision choice. Keeping current identity.");
+      continue;
+    }
+
+    if (reviseChoice === "name" || reviseChoice === "all") {
+      const namePrompt = await generateResponse(
+        `Ask for a revised short name. The current name is "${identityData.name}".`,
+      );
+      clack.log.message(`🤖 ${preferPracticalPrompt(namePrompt, "What name should I use instead?")}`);
+      const next = await clack.text({ message: "You", placeholder: identityData.name });
       if (clack.isCancel(next)) {
         await shutdown().catch(() => {});
         throw new Error("Discovery cancelled by user");
@@ -257,21 +336,31 @@ export async function runHindbrainDiscovery(): Promise<Identity> {
       } else {
         identityData.name = revised;
       }
-    } else if (revise === "purpose") {
-      const next = await clack.text({
-        message: "Enter revised purpose",
-        placeholder: identityData.purpose,
-      });
+    }
+
+    if (reviseChoice === "purpose" || reviseChoice === "all") {
+      const purposePrompt = await generateResponse(
+        `Ask for a revised one-sentence purpose for "${identityData.name}".`,
+      );
+      clack.log.message(
+        `🤖 ${preferPracticalPrompt(purposePrompt, "What purpose should I carry day-to-day? One sentence is enough.")}`,
+      );
+      const next = await clack.text({ message: "You", placeholder: identityData.purpose });
       if (clack.isCancel(next)) {
         await shutdown().catch(() => {});
         throw new Error("Discovery cancelled by user");
       }
       identityData.purpose = String(next).trim() || identityData.purpose;
-    } else {
-      const next = await clack.text({
-        message: "Enter revised personality traits (comma-separated)",
-        placeholder: identityData.personality.join(","),
-      });
+    }
+
+    if (reviseChoice === "personality" || reviseChoice === "all") {
+      const personalityPrompt = await generateResponse(
+        "Ask for a revised set of 3-5 personality traits as a comma-separated list.",
+      );
+      clack.log.message(
+        `🤖 ${preferPracticalPrompt(personalityPrompt, "What traits fit best now? Use 3-5 comma-separated traits.")}`,
+      );
+      const next = await clack.text({ message: "You", placeholder: identityData.personality.join(", ") });
       if (clack.isCancel(next)) {
         await shutdown().catch(() => {});
         throw new Error("Discovery cancelled by user");

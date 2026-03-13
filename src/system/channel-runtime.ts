@@ -11,12 +11,44 @@ import { updateSocialMemory } from "./social-memory.js";
 import { generateQualityReply } from "./channel-quality.js";
 import { planDialogTurn } from "./dialog-state.js";
 import { recordCreatureEvent } from "./creature-events.js";
+import { reflexCheck } from "../brain/hindbrain.js";
+import { loadCompleteIdentity } from "./soul.js";
 
 type LoopHandle = {
   timer: NodeJS.Timeout;
 };
 
 const loopHandles = new Map<string, LoopHandle>();
+
+async function runReflexCheck(
+  rootDir: string,
+  inboundText: string,
+  responseText: string,
+): Promise<{ safe: boolean; response?: string; reason?: string }> {
+  if (process.env.HATCHLING_REFLEX_CHECK === "0") {
+    return { safe: true, response: responseText };
+  }
+  try {
+    const dnaContext = await loadCompleteIdentity(rootDir);
+    const check = await reflexCheck(inboundText, responseText, dnaContext);
+    if (!check.safe) {
+      return {
+        safe: false,
+        response: check.modifiedResponse?.trim() || undefined,
+        reason: check.reason,
+      };
+    }
+    return {
+      safe: true,
+      response: check.modifiedResponse?.trim() || responseText,
+    };
+  } catch (error: any) {
+    return {
+      safe: false,
+      reason: error?.message || "Reflex check failed",
+    };
+  }
+}
 
 export interface ChannelRuntimeState {
   lastTickAt?: string;
@@ -240,7 +272,16 @@ async function runTelegramTick(
         },
         { fetchImpl },
       );
-      await sendTelegramMessage(botToken, chatId, quality.text, fetchImpl);
+      const reflex = await runReflexCheck(rootDir, text, quality.text);
+      if (!reflex.safe) {
+        await recordCreatureEvent(
+          rootDir,
+          "immune_block",
+          `telegram response blocked${reflex.reason ? `: ${reflex.reason}` : ""}`,
+        );
+        if (!reflex.response) continue;
+      }
+      await sendTelegramMessage(botToken, chatId, reflex.response || quality.text, fetchImpl);
     }
   }
 
@@ -361,7 +402,16 @@ async function runWhatsAppTick(
           },
           { fetchImpl },
         );
-        await sendWhatsAppMessage(token, phoneNumberId, event.from, quality.text, fetchImpl);
+        const reflex = await runReflexCheck(rootDir, event.text, quality.text);
+        if (!reflex.safe) {
+          await recordCreatureEvent(
+            rootDir,
+            "immune_block",
+            `whatsapp response blocked${reflex.reason ? `: ${reflex.reason}` : ""}`,
+          );
+          if (!reflex.response) continue;
+        }
+        await sendWhatsAppMessage(token, phoneNumberId, event.from, reflex.response || quality.text, fetchImpl);
       }
     }
   }

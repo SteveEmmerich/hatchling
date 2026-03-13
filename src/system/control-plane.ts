@@ -20,7 +20,7 @@ const defaultSkillPolicy = {
 };
 
 const defaultEvolvePolicy = {
-  enforceApprovals: false,
+  enforceApprovals: true,
 };
 
 const ControlPlaneSchema = z.object({

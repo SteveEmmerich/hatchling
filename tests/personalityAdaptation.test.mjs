@@ -18,6 +18,7 @@ test("personality adaptation persists signals and traits from feedback", async (
   const initial = await loadPersonalityState(testRoot, ["curious", "direct"]);
   assert.equal(initial.baseTraits.includes("curious"), true);
   assert.equal(initial.signals.confidence, 5);
+  assert.equal(initial.signals.calibration, 5);
 
   const updated = await adaptPersonalityFromFeedback(testRoot, "positive", "great work, very helpful");
   assert.equal(updated.totalFeedback, 1);

@@ -226,7 +226,7 @@ function randomRunId(): string {
 export async function executeEvolutionPlan(
   rootDir: string,
   plan: EvolvePlan,
-  options: { approveUntrusted?: boolean; skillSubdir?: string; runId?: string } = {},
+  options: { approveUntrusted?: boolean; approvePlan?: boolean; skillSubdir?: string; runId?: string } = {},
 ): Promise<EvolveExecutionResult[]> {
   const results: EvolveExecutionResult[] = [];
   const undo: EvolutionUndoAction[] = [];
@@ -289,7 +289,12 @@ export async function executeEvolutionPlan(
           existed = false;
         }
 
-        const mutation = await mutate(rootDir, filePath, generatedWebLimbContent(plan.goal));
+        const mutation = await mutate(
+          rootDir,
+          filePath,
+          generatedWebLimbContent(plan.goal),
+          Boolean(options.approvePlan),
+        );
         if (mutation.success) {
           undo.push({
             type: "restore_file",

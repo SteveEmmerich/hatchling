@@ -14,9 +14,11 @@ test("evolution narrative: stage skill, promote skill, and mutate web limb", asy
     HATCHLING_HOME: testHome,
     HATCHLING_HINDBRAIN_BACKEND: "cpu",
     HATCHLING_INTERNAL_WRITE: "1",
+    HATCHLING_CONSTITUTION_CHECK: "0",
   };
   process.env.HATCHLING_HOME = testHome;
   process.env.HATCHLING_INTERNAL_WRITE = "1";
+  process.env.HATCHLING_CONSTITUTION_CHECK = "0";
 
   const init = spawnSync(
     "node",
@@ -76,6 +78,7 @@ export function renderHatchlingWebLimb(title: string): string {
     filePath: "system/web-limb.ts",
     content: webLimb,
     reason: "Add a first-party web limb the hatchling can evolve over time.",
+    approved: true,
   });
   assert.equal(mutation.details.success, true, JSON.stringify(mutation.details));
 
@@ -93,4 +96,5 @@ export function renderHatchlingWebLimb(title: string): string {
   assert.match(webSnapshot.stdout, /<!doctype html>/i);
 
   await fs.rm(testHome, { recursive: true, force: true });
+  delete process.env.HATCHLING_CONSTITUTION_CHECK;
 });

@@ -20,7 +20,7 @@ import {
 } from "./system/instance.js";
 import { germinate, isHindbrainAvailable } from "./brain/hindbrain.js";
 
-process.env.HATCHLING_INTERNAL_WRITE ||= "1";
+process.env.HATCHLING_CONTEXT ||= "cli";
 
 type DoctorLevel = "pass" | "warn" | "fail";
 interface DoctorCheck {
@@ -1760,11 +1760,14 @@ const main = defineCommand({
         const rootDir = getInstancePath(activeInstance);
         const { planEvolution, executeEvolutionPlan, listRiskyEvolveActions } = await import("./system/evolve.js");
         const { getEvolvePolicy } = await import("./system/control-plane.js");
+        const { summarizeTrust } = await import("./system/social-memory.js");
 
         const plan = planEvolution(String(args.goal));
         const riskyActions = listRiskyEvolveActions(plan);
         const evolvePolicy = await getEvolvePolicy(rootDir);
-        const approvalsEnforced = Boolean(args.enforceApprovals) || evolvePolicy.enforceApprovals;
+        const trustSummary = await summarizeTrust(rootDir);
+        const trustRequiresApproval = trustSummary.count > 0 && trustSummary.average < 45;
+        const approvalsEnforced = Boolean(args.enforceApprovals) || evolvePolicy.enforceApprovals || trustRequiresApproval;
         const approvedByFlag = Boolean(args.approvePlan);
         if (args.json) {
           if (!args.execute) {
@@ -1788,6 +1791,7 @@ const main = defineCommand({
           }
           const results = await executeEvolutionPlan(rootDir, plan, {
             approveUntrusted: Boolean(args.approveUntrusted),
+            approvePlan: approvedByFlag,
             skillSubdir: args.skillSubdir ? String(args.skillSubdir) : undefined,
           });
           console.log(JSON.stringify({ mode: "execute", plan, results }, null, 2));
@@ -1812,7 +1816,8 @@ const main = defineCommand({
           return;
         }
 
-        if (approvalsEnforced && riskyActions.length > 0 && !approvedByFlag) {
+        let approvedForRun = approvedByFlag;
+        if (approvalsEnforced && riskyActions.length > 0 && !approvedForRun) {
           clack.log.warn(
             `Risky actions pending approval: ${riskyActions.map((action) => action.type).join(", ")}`,
           );
@@ -1824,10 +1829,12 @@ const main = defineCommand({
             clack.cancel("Execution cancelled: approval not granted.");
             process.exit(1);
           }
+          approvedForRun = true;
         }
 
         const results = await executeEvolutionPlan(rootDir, plan, {
           approveUntrusted: Boolean(args.approveUntrusted),
+          approvePlan: approvedForRun,
           skillSubdir: args.skillSubdir ? String(args.skillSubdir) : undefined,
         });
         for (const result of results) {

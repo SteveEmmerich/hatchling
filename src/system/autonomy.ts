@@ -2,6 +2,8 @@ import fs from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
 import { executeEvolutionPlan, listRiskyEvolveActions, planEvolution, type EvolveExecutionResult, type EvolvePlan } from "./evolve.js";
+import { getEvolvePolicy } from "./control-plane.js";
+import { summarizeTrust } from "./social-memory.js";
 import {
   appendAutonomyReflection,
   applyRunToStrategy,
@@ -86,6 +88,19 @@ function objectiveListFromStrategy(goals: StrategyGoal[]): string[] {
   return goals.map((goal) => goal.objective);
 }
 
+async function loadCuriosityLevel(rootDir: string): Promise<number> {
+  const target = path.join(rootDir, "brain", "curiosity_state.json");
+  if (!existsSync(target)) return 5;
+  try {
+    const parsed = JSON.parse(await fs.readFile(target, "utf-8")) as { adjustedCuriosity?: number };
+    const value = Number(parsed.adjustedCuriosity ?? 5);
+    if (!Number.isFinite(value)) return 5;
+    return Math.max(0, Math.min(10, value));
+  } catch {
+    return 5;
+  }
+}
+
 async function readLog(rootDir: string): Promise<AutonomyLogPayload> {
   const target = path.join(rootDir, AUTONOMY_LOG_FILE);
   if (!existsSync(target)) return { runs: [] };
@@ -128,9 +143,22 @@ export async function runAutonomousEvolution(
   goal: string,
   options: AutonomousRunOptions = {},
 ): Promise<AutonomousRunResult> {
-  const maxSteps = Math.max(1, Number(options.maxSteps || 5));
+  let maxSteps = Math.max(1, Number(options.maxSteps || 5));
+  const curiosity = await loadCuriosityLevel(rootDir);
+  const trustSummary = await summarizeTrust(rootDir);
+  const curiosityDelta = Math.round((curiosity - 5) / 2);
+  const trustDelta = trustSummary.average >= 70 ? 1 : trustSummary.average < 45 ? -1 : 0;
+  maxSteps = Math.max(1, Math.min(8, maxSteps + curiosityDelta + trustDelta));
   const execute = Boolean(options.execute);
   const useStrategy = options.useStrategy !== false;
+  let enforceApprovals = options.enforceApprovals;
+  if (enforceApprovals === undefined) {
+    const policy = await getEvolvePolicy(rootDir);
+    enforceApprovals = policy.enforceApprovals;
+  }
+  if (trustSummary.count > 0 && trustSummary.average < 45) {
+    enforceApprovals = true;
+  }
   const requestedObjectives = splitObjectives(goal, maxSteps);
   let strategyGeneratedObjectives: string[] = [];
   let objectives = requestedObjectives;
@@ -148,7 +176,7 @@ export async function runAutonomousEvolution(
     const objective = objectives[i];
     const plan = planEvolution(objective);
     const risky = listRiskyEvolveActions(plan).map((action) => action.type);
-    const approvalRequired = Boolean(options.enforceApprovals) && risky.length > 0;
+    const approvalRequired = Boolean(enforceApprovals) && risky.length > 0;
 
     if (!plan.actions.length) {
       steps.push({
@@ -192,6 +220,7 @@ export async function runAutonomousEvolution(
 
     const results = await executeEvolutionPlan(rootDir, plan, {
       approveUntrusted: Boolean(options.approveUntrusted),
+      approvePlan: Boolean(options.approvePlan),
       skillSubdir: options.skillSubdir,
     });
     const failed = results.some((entry) => !entry.success);

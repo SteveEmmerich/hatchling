@@ -8,7 +8,8 @@ export type CreatureEventType =
   | "objective_complete"
   | "maintenance"
   | "error"
-  | "recovery";
+  | "recovery"
+  | "immune_block";
 
 export interface CreatureEvent {
   at: string;
@@ -68,6 +69,7 @@ export async function summarizeCreatureEvents(rootDir: string): Promise<{
     maintenance: 0,
     error: 0,
     recovery: 0,
+    immune_block: 0,
   };
   for (const event of store.events) {
     counts[event.type] = (counts[event.type] || 0) + 1;

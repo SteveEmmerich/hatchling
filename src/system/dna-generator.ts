@@ -75,6 +75,7 @@ export async function generateDNAFiles(
           caution: 4,
           warmth: 5,
           stress: 3,
+          calibration: 5,
         },
         totalFeedback: 0,
         lastUpdatedAt: now,
@@ -118,7 +119,7 @@ export async function generateDNAFiles(
     ),
     "evolve_policy.json": JSON.stringify(
       {
-        enforceApprovals: false,
+        enforceApprovals: true,
       },
       null,
       2,

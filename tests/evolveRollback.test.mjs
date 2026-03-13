@@ -40,6 +40,7 @@ test("rollback reverts last evolution run actions", async () => {
       "evolve",
       "Enable Telegram gateway and use OpenAI",
       "--execute",
+      "--approvePlan",
       "--json",
     ],
     { cwd: process.cwd(), env, encoding: "utf-8" },

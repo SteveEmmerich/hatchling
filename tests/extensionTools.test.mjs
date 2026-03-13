@@ -11,6 +11,7 @@ test("extension registers evolution tools and executes mutate_self/sync_germline
 
   process.env.HATCHLING_HOME = testHome;
   process.env.HATCHLING_INTERNAL_WRITE = "1";
+  process.env.HATCHLING_CONSTITUTION_CHECK = "0";
 
   const instance = await import("../dist/system/instance.js");
   const { generateDNAFiles } = await import("../dist/system/dna-generator.js");
@@ -69,6 +70,7 @@ test("extension registers evolution tools and executes mutate_self/sync_germline
     filePath: "../../../../outside.ts",
     content: "export const bad = true;",
     reason: "ensure territory protection",
+    approved: true,
   });
   const mutateDetails = mutateResult.details;
   assert.equal(mutateDetails.success, false);
@@ -110,6 +112,7 @@ export function renderWebInterface(config: WebInterfaceConfig): string {
     filePath: "system/web-interface.ts",
     content: webInterfaceModule,
     reason: "Add a minimal first-party web interface rendering module for future UI evolution.",
+    approved: true,
   });
   assert.equal(successfulMutation.details.success, true);
   assert.match(successfulMutation.content[0].text, /mutation succeeded/i);
@@ -201,4 +204,5 @@ export function renderWebInterface(config: WebInterfaceConfig): string {
 
   await instance.deleteInstance("ext");
   await fs.rm(testHome, { recursive: true, force: true });
+  delete process.env.HATCHLING_CONSTITUTION_CHECK;
 });

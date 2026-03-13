@@ -13,6 +13,7 @@ test("telegram channel runtime tick ingests updates with injected fetch", async 
     ...process.env,
     HATCHLING_HOME: testHome,
     HATCHLING_HINDBRAIN_BACKEND: "cpu",
+    HATCHLING_REFLEX_CHECK: "0",
     TELEGRAM_BOT_TOKEN: "test-token",
     TELEGRAM_CHAT_ID: "123",
   };
@@ -42,6 +43,7 @@ test("telegram channel runtime tick ingests updates with injected fetch", async 
 
   process.env.TELEGRAM_BOT_TOKEN = "test-token";
   process.env.TELEGRAM_CHAT_ID = "123";
+  process.env.HATCHLING_REFLEX_CHECK = "0";
 
   const { runChannelRuntimeTick } = await import("../dist/system/channel-runtime.js");
   const rootDir = path.join(testHome, ".hatchlings", "channel-runtime-telegram-seed");
@@ -97,6 +99,7 @@ test("telegram channel runtime applies route policy and custom reply template", 
     ...process.env,
     HATCHLING_HOME: testHome,
     HATCHLING_HINDBRAIN_BACKEND: "cpu",
+    HATCHLING_REFLEX_CHECK: "0",
     TELEGRAM_BOT_TOKEN: "test-token",
     TELEGRAM_CHAT_ID: "123",
   };
@@ -126,6 +129,7 @@ test("telegram channel runtime applies route policy and custom reply template", 
 
   process.env.TELEGRAM_BOT_TOKEN = "test-token";
   process.env.TELEGRAM_CHAT_ID = "123";
+  process.env.HATCHLING_REFLEX_CHECK = "0";
 
   const rootDir = path.join(testHome, ".hatchlings", "channel-runtime-telegram-policy-seed");
   const policyPath = path.join(rootDir, "brain", "channel_policy.json");
@@ -298,6 +302,7 @@ test("telegram runtime multi-turn planner adds follow-up question for ambiguous 
     ...process.env,
     HATCHLING_HOME: testHome,
     HATCHLING_HINDBRAIN_BACKEND: "cpu",
+    HATCHLING_REFLEX_CHECK: "0",
     TELEGRAM_BOT_TOKEN: "test-token",
     TELEGRAM_CHAT_ID: "123",
   };
@@ -327,6 +332,7 @@ test("telegram runtime multi-turn planner adds follow-up question for ambiguous 
 
   process.env.TELEGRAM_BOT_TOKEN = "test-token";
   process.env.TELEGRAM_CHAT_ID = "123";
+  process.env.HATCHLING_REFLEX_CHECK = "0";
 
   const rootDir = path.join(testHome, ".hatchlings", "channel-runtime-telegram-dialog-seed");
   const policyPath = path.join(rootDir, "brain", "channel_policy.json");

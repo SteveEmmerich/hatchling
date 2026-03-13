@@ -98,6 +98,29 @@ export async function loadSocialMemory(rootDir: string): Promise<SocialMemorySta
   }
 }
 
+export async function summarizeTrust(rootDir: string): Promise<{
+  average: number;
+  count: number;
+  min: number;
+  max: number;
+}> {
+  const state = await loadSocialMemory(rootDir);
+  const profiles = Object.values(state.users || {});
+  if (profiles.length === 0) {
+    return { average: 50, count: 0, min: 50, max: 50 };
+  }
+  const scores = profiles.map((profile) => Number(profile.trustScore || 50));
+  const total = scores.reduce((sum, score) => sum + score, 0);
+  const min = Math.min(...scores);
+  const max = Math.max(...scores);
+  return {
+    average: Number((total / scores.length).toFixed(1)),
+    count: scores.length,
+    min,
+    max,
+  };
+}
+
 async function saveSocialMemory(rootDir: string, state: SocialMemoryState): Promise<void> {
   const target = socialMemoryPath(rootDir);
   await fs.mkdir(path.dirname(target), { recursive: true });

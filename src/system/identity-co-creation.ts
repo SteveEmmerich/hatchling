@@ -37,6 +37,9 @@ const STOP_WORDS = new Set([
   "think",
   "self",
   "no",
+  "do",
+  "does",
+  "did",
 ]);
 
 function toNameTokens(value: string): string[] {

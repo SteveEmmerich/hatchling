@@ -9,6 +9,8 @@ import { dirname, join, resolve } from "path";
 import { exec } from "child_process";
 import { promisify } from "util";
 import { fileURLToPath } from "url";
+import { SecurityScanner } from "../system/scanner.js";
+import { generateResponse } from "../brain/hindbrain.js";
 
 const execAsync = promisify(exec);
 const moduleDir = dirname(fileURLToPath(import.meta.url));
@@ -42,6 +44,49 @@ async function resolveGermlineRef(instancePath: string): Promise<string> {
   return "germline/main";
 }
 
+async function runConstitutionCheck(
+  instancePath: string,
+  normalizedPath: string,
+  content: string,
+): Promise<{ ok: boolean; reason?: string }> {
+  if (process.env.HATCHLING_CONSTITUTION_CHECK === "0") {
+    return { ok: true };
+  }
+
+  let constitution = "1. Territory Isolation\n2. Protected Brain\n3. Code Safety (No rm/eval)";
+  try {
+    const constitutionPath = join(instancePath, "brain", "CONSTITUTION.md");
+    constitution = await fs.readFile(constitutionPath, "utf-8");
+  } catch {
+    // Use default constitution when file is missing.
+  }
+
+  const prompt = `
+CONSTITUTION:
+${constitution}
+
+TARGET FILE: ${normalizedPath}
+CODE:
+${content}
+
+Does this change violate the constitution? Reply ONLY "SAFE" or "UNSAFE: <reason>".
+`;
+
+  try {
+    const response = await generateResponse(prompt, { temperature: 0.1, maxTokens: 200 });
+    const trimmed = String(response || "").trim();
+    if (/^SAFE\b/i.test(trimmed)) {
+      return { ok: true };
+    }
+    if (/^UNSAFE\b/i.test(trimmed)) {
+      return { ok: false, reason: trimmed };
+    }
+    return { ok: false, reason: `Constitution check failed: ${trimmed || "unrecognized response"}` };
+  } catch (error: any) {
+    return { ok: false, reason: error?.message || "Constitution check failed" };
+  }
+}
+
 export interface MutationResult {
   success: boolean;
   message: string;
@@ -61,9 +106,24 @@ export interface RecombinationResult {
 export async function mutate(
   instancePath: string,
   filePath: string,
-  content: string
+  content: string,
+  approved = false,
 ): Promise<MutationResult> {
   try {
+    const policyPath = join(instancePath, "brain", "evolve_policy.json");
+    let enforceApprovals = false;
+    try {
+      const policy = JSON.parse(await fs.readFile(policyPath, "utf-8")) as { enforceApprovals?: boolean };
+      enforceApprovals = Boolean(policy?.enforceApprovals);
+    } catch {
+      // Default to false when policy is missing.
+    }
+    if (enforceApprovals && !approved && process.env.HATCHLING_AUTO_APPROVE_MUTATIONS !== "1") {
+      return {
+        success: false,
+        message: "Mutation blocked: approval required.",
+      };
+    }
     // Ensure file is within src/ directory
     const normalizedPath = filePath.startsWith("src/")
       ? filePath
@@ -78,6 +138,29 @@ export async function mutate(
       };
     }
 
+    const relativePath = normalizedPath.replace(/^src\//, "");
+    const existing = existsSync(fullPath);
+    const previousContent = existing ? await fs.readFile(fullPath, "utf-8") : null;
+
+    try {
+      SecurityScanner.scanCode(content, relativePath || normalizedPath);
+    } catch (scanError: any) {
+      return {
+        success: false,
+        message: "Mutation rejected: Security scan failed",
+        errors: [scanError?.message || String(scanError)],
+      };
+    }
+
+    const constitutionCheck = await runConstitutionCheck(instancePath, normalizedPath, content);
+    if (!constitutionCheck.ok) {
+      return {
+        success: false,
+        message: "Mutation rejected: Constitution check failed",
+        errors: [constitutionCheck.reason || "Constitution violation"],
+      };
+    }
+
     // Write mutation
     await fs.mkdir(join(instancePath, "src"), { recursive: true });
     await fs.writeFile(fullPath, content, "utf-8");
@@ -89,11 +172,7 @@ export async function mutate(
       });
 
       if (stderr && !stderr.includes("warning")) {
-        return {
-          success: false,
-          message: "Mutation failed: Type errors detected",
-          errors: [stderr],
-        };
+        throw new Error(stderr);
       }
 
       return {
@@ -101,11 +180,20 @@ export async function mutate(
         message: `Successfully mutated ${normalizedPath}`,
       };
     } catch (error: any) {
-      // TypeScript errors
+      // TypeScript errors - rollback mutation
+      try {
+        if (previousContent === null) {
+          await fs.unlink(fullPath);
+        } else {
+          await fs.writeFile(fullPath, previousContent, "utf-8");
+        }
+      } catch {
+        // Ignore rollback errors; surface original failure.
+      }
       return {
         success: false,
         message: "Mutation failed: Biological integrity check failed",
-        errors: [error.stdout || error.message],
+        errors: [error?.stdout || error?.message || String(error)],
       };
     }
   } catch (error: any) {

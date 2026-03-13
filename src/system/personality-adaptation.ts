@@ -7,6 +7,7 @@ export interface PersonalitySignals {
   caution: number;
   warmth: number;
   stress: number;
+  calibration: number;
 }
 
 export interface PersonalityAdjustment {
@@ -52,6 +53,7 @@ export function defaultPersonalityState(baseTraits: string[] = ["curious", "loya
       caution: 4,
       warmth: 5,
       stress: 3,
+      calibration: 5,
     },
     totalFeedback: 0,
     lastUpdatedAt: now,
@@ -83,6 +85,7 @@ export async function loadPersonalityState(rootDir: string, baseTraits: string[]
       caution: clampSignal(Number(parsed.signals.caution ?? 4)),
       warmth: clampSignal(Number(parsed.signals.warmth ?? 5)),
       stress: clampSignal(Number(parsed.signals.stress ?? 3)),
+      calibration: clampSignal(Number(parsed.signals.calibration ?? 5)),
     };
     parsed.totalFeedback = Number(parsed.totalFeedback || 0);
     parsed.adjustments = Array.isArray(parsed.adjustments) ? parsed.adjustments.slice(-100) : [];
@@ -117,6 +120,7 @@ function feedbackDelta(sentiment: "positive" | "negative", context: string | und
       caution: -0.2,
       warmth: text.includes("helpful") || text.includes("kind") ? 1.0 : 0.4,
       stress: -0.6,
+      calibration: text.includes("accurate") || text.includes("precise") ? 0.8 : 0.3,
     };
   }
   return {
@@ -124,6 +128,7 @@ function feedbackDelta(sentiment: "positive" | "negative", context: string | und
     caution: text.includes("danger") || text.includes("risk") ? 1.2 : 0.8,
     warmth: -0.2,
     stress: text.includes("urgent") || text.includes("broken") ? 1.3 : 0.9,
+    calibration: text.includes("wrong") || text.includes("overconfident") ? 1.0 : 0.4,
   };
 }
 
@@ -138,6 +143,7 @@ export async function adaptPersonalityFromFeedback(
   current.signals.caution = clampSignal(current.signals.caution + delta.caution);
   current.signals.warmth = clampSignal(current.signals.warmth + delta.warmth);
   current.signals.stress = clampSignal(current.signals.stress + delta.stress);
+  current.signals.calibration = clampSignal(current.signals.calibration + delta.calibration);
   current.totalFeedback += 1;
   current.lastUpdatedAt = new Date().toISOString();
   current.adjustments.push({
@@ -161,5 +167,7 @@ export function styleReplyForPersonality(baseText: string, state: PersonalitySta
   if (state.signals.warmth >= 8) return `Happy to help. ${text}`;
   if (state.signals.confidence >= 8) return `Absolutely. ${text}`;
   if (state.signals.caution >= 8) return `Safety check first. ${text}`;
+  if (state.signals.calibration <= 3) return `I might be off—double-checking. ${text}`;
+  if (state.signals.calibration >= 8) return `I’m calibrated on this. ${text}`;
   return text;
 }
