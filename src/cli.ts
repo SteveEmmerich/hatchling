@@ -2145,6 +2145,36 @@ const main = defineCommand({
       },
     }),
 
+    organism: defineCommand({
+      meta: {
+        description: "Run a single organism loop tick (scaffold)",
+      },
+      args: {
+        json: {
+          type: "boolean",
+          description: "Print machine-readable output",
+          default: false,
+        },
+      },
+      async run({ args }) {
+        const activeInstance = await getActiveInstance();
+        if (!activeInstance) {
+          clack.log.error("No active instance found. Run 'hatchling init' first.");
+          process.exit(1);
+        }
+        const rootDir = getInstancePath(activeInstance);
+        const { runOrganismTick, exposeSelectedTask } = await import("./organism/organism_loop.js");
+        const result = await runOrganismTick(rootDir, {});
+        if (args.json) {
+          console.log(JSON.stringify(result, null, 2));
+          return;
+        }
+        clack.log.message(`🧬 Organism tick @ ${result.ranAt}`);
+        clack.log.message(`Energy: ${result.energy.level}/100 (low=${result.energy.lowEnergy})`);
+        clack.log.message(exposeSelectedTask(result.selectedTask));
+      },
+    }),
+
     doctor: defineCommand({
       meta: {
         description: "Run environment and runtime health checks",
