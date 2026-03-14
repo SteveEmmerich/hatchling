@@ -4,6 +4,7 @@ import { generateDNAFiles } from "./dna-generator.js";
 import { basename, join } from "path";
 import type { Identity } from "./identity-schema.js";
 import { ensureCuriosityState } from "../curiosity/curiosity_engine.js";
+import { ensureAgentState } from "../agents/agent_manager.js";
 
 export interface OnboardOptions {
   provider: string;
@@ -36,6 +37,7 @@ export async function runSelfDiscovery(
     const brainDir = join(instanceDir, "brain");
     await generateDNAFiles(brainDir, identity);
     await ensureCuriosityState(instanceDir);
+    await ensureAgentState(instanceDir);
 
     return instanceDir;
   } catch (error) {
