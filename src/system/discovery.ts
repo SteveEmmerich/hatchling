@@ -1,6 +1,7 @@
 import type { Identity } from "./identity-schema";
-import { runHindbrainDiscovery } from "./hindbrain-discovery.js";
 import { parseIdentity } from "./identity-schema.js";
+import { createHindbrainInterface } from "../brain/hindbrain_interface.js";
+import { createBrainRouter } from "../brain/brain_router.js";
 
 /**
  * Run interactive discovery conversation to define agent identity
@@ -21,5 +22,11 @@ export async function runInteractiveDiscovery(
       personality: seedIdentity.personality,
     });
   }
-  return runHindbrainDiscovery();
+  const hindbrain = createHindbrainInterface();
+  const router = createBrainRouter({ hindbrain });
+  const result = await router.handleOnboarding({});
+  if (!result.ok || !result.data) {
+    throw new Error(result.error || "Hindbrain onboarding failed");
+  }
+  return result.data as Identity;
 }
