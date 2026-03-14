@@ -11,6 +11,7 @@ import { createMaintenanceTask, createSleepTask, tasksFromAutonomyPlan, tasksFro
 import { scoreTask, sortTasksByScore, type TaskScoringWeights, DEFAULT_TASK_WEIGHTS } from "../tasks/task_scoring.js";
 import type { EvolvePlan } from "../system/evolve.js";
 import { generateCuriosityTasks } from "../curiosity/curiosity_engine.js";
+import { collectAgentFollowUpTasks } from "../agents/agent_followup.js";
 
 export interface OrganismLoopOptions {
   now?: () => Date;
@@ -80,6 +81,10 @@ export async function runOrganismTick(rootDir: string, options: OrganismLoopOpti
   const candidates = collectCandidateTasks(options);
   const sleepThreshold = options.sleepThreshold ?? DEFAULT_SLEEP_THRESHOLD;
   const criticalEnergyThreshold = options.criticalEnergyThreshold ?? DEFAULT_CRITICAL_THRESHOLD;
+  const agentFollowUps = await collectAgentFollowUpTasks(rootDir);
+  if (agentFollowUps.length > 0) {
+    candidates.push(...agentFollowUps);
+  }
   const includeCuriosity = options.includeCuriosity ?? process.env.HATCHLING_DISABLE_CURIOSITY !== "1";
   if (includeCuriosity) {
     const curiosityTasks = await generateCuriosityTasks(rootDir, energy.level, sleepThreshold, { now: options.now });

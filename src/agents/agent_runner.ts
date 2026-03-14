@@ -254,6 +254,7 @@ export async function executeAgentTask(rootDir: string, task: AgentTask): Promis
   const result: AgentResult = {
     id: `${task.id}-result`,
     agentId: task.id,
+    agentType: task.type,
     status,
     output,
     createdAt: runningTask.createdAt,

@@ -31,10 +31,12 @@ export interface AgentTask {
 export interface AgentResult {
   id: string;
   agentId: string;
+  agentType: AgentType;
   status: AgentStatus;
   output: string;
   createdAt: string;
   finishedAt: string;
+  consumedAt?: string;
 }
 
 export interface AgentHistoryEntry {

@@ -58,6 +58,7 @@ test("agent runner executes and records result", async () => {
 
   assert.ok(result);
   assert.equal(result.agentId, task.id);
+  assert.equal(result.agentType, task.type);
   assert.ok(result.output.includes("Goal:"));
   assert.equal(active.length, 0);
   assert.ok(results.some((entry) => entry.agentId === task.id));
