@@ -201,5 +201,20 @@ export async function updateSocialMemory(
 
   state.users[key] = next;
   await saveSocialMemory(rootDir, state);
+  try {
+    const { updateSocialMemoryEntry } = await import("../memory/memory_manager.js");
+    await updateSocialMemoryEntry(rootDir, key, {
+      trust: next.trustScore,
+      interactionCount: next.interactions,
+      preferences: {
+        verbosity: next.preferences?.verbosity || "balanced",
+        pace: next.preferences?.pace || "normal",
+      },
+      lastSeenAt: next.lastSeenAt,
+      notes: next.notes || [],
+    });
+  } catch {
+    // Ignore canonical memory sync failures.
+  }
   return next;
 }
