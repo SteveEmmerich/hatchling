@@ -12,6 +12,7 @@ import { scoreTask, sortTasksByScore, type TaskScoringWeights, DEFAULT_TASK_WEIG
 import type { EvolvePlan } from "../system/evolve.js";
 import { generateCuriosityTasks } from "../curiosity/curiosity_engine.js";
 import { collectAgentFollowUpTasks } from "../agents/agent_followup.js";
+import { immuneSystem, toGateResult } from "../immune/immune_system.js";
 
 export interface OrganismLoopOptions {
   now?: () => Date;
@@ -83,7 +84,27 @@ export async function runOrganismTick(rootDir: string, options: OrganismLoopOpti
   const criticalEnergyThreshold = options.criticalEnergyThreshold ?? DEFAULT_CRITICAL_THRESHOLD;
   const agentFollowUps = await collectAgentFollowUpTasks(rootDir);
   if (agentFollowUps.length > 0) {
-    candidates.push(...agentFollowUps);
+    const validated: Task[] = [];
+    for (const task of agentFollowUps) {
+      const inputCheck = immuneSystem.validateInput(task.goal);
+      const inputGate = toGateResult(inputCheck, "input_validator");
+      if (!inputGate.allowed) {
+        console.warn(`[IMMUNE] Rejected follow-up task ${task.id}: ${inputGate.reason || "blocked"}`);
+        continue;
+      }
+      if (task.goal.includes("src/") || task.goal.includes("brain/")) {
+        const fsCheck = await immuneSystem.validateFilesystemAccess(rootDir, "src", "read");
+        const fsGate = toGateResult(fsCheck, "filesystem_guard");
+        if (!fsGate.allowed) {
+          console.warn(`[IMMUNE] Rejected follow-up task ${task.id}: ${fsGate.reason || "blocked"}`);
+          continue;
+        }
+      }
+      validated.push(task);
+    }
+    if (validated.length > 0) {
+      candidates.push(...validated);
+    }
   }
   const includeCuriosity = options.includeCuriosity ?? process.env.HATCHLING_DISABLE_CURIOSITY !== "1";
   if (includeCuriosity) {

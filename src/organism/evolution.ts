@@ -11,6 +11,7 @@ import { promisify } from "util";
 import { fileURLToPath } from "url";
 import { SecurityScanner } from "../system/scanner.js";
 import { generateResponse } from "../brain/hindbrain.js";
+import { immuneSystem, toGateResult } from "../immune/immune_system.js";
 
 const execAsync = promisify(exec);
 const moduleDir = dirname(fileURLToPath(import.meta.url));
@@ -158,6 +159,22 @@ export async function mutate(
         success: false,
         message: "Mutation rejected: Constitution check failed",
         errors: [constitutionCheck.reason || "Constitution violation"],
+      };
+    }
+
+    const immuneCheck = await immuneSystem.validateMutationProposal({
+      filePath: normalizedPath,
+      content,
+      checkConstitution: false,
+    });
+    const immuneGate = toGateResult(immuneCheck, "immune_mutation");
+    if (!immuneGate.allowed) {
+      const reason = immuneGate.reason || "Mutation rejected by immune system";
+      console.warn(`[IMMUNE] ${reason}`);
+      return {
+        success: false,
+        message: "Mutation rejected: Immune validation failed",
+        errors: [reason],
       };
     }
 

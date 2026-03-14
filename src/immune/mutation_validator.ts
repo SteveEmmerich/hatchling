@@ -45,6 +45,12 @@ Does this change violate the constitution? Reply ONLY "SAFE" or "UNSAFE: <reason
 }
 
 export async function validateMutationProposal(proposal: MutationProposal): Promise<MutationValidationResult> {
+  if (process.env.HATCHLING_IMMUNE_FORCE_DENY === "1") {
+    return {
+      ok: false,
+      errors: ["Immune override: forced deny"],
+    };
+  }
   const errors: string[] = [];
   const filePath = String(proposal.filePath || "").trim();
   const content = String(proposal.content || "");

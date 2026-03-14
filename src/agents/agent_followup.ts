@@ -62,10 +62,11 @@ function summarizeOutput(output: string): string {
 
 function mapResultToTask(result: AgentResult): Task {
   const summary = summarizeOutput(result.output);
+  let task: Task;
   switch (result.agentType) {
     case "researcher":
     case "experimenter":
-      return createTask({
+      task = createTask({
         id: `${result.id}-followup`,
         type: "curiosity_task",
         goal: `${result.agentType} result: ${summary}`,
@@ -73,17 +74,19 @@ function mapResultToTask(result: AgentResult): Task {
         energyCost: 4,
         createdAt: result.finishedAt,
       });
+      break;
     case "test_runner":
-      return createMaintenanceTask(`${result.agentType} result: ${summary}`, {
+      task = createMaintenanceTask(`${result.agentType} result: ${summary}`, {
         id: `${result.id}-followup`,
         priority: 5,
         energyCost: 3,
         createdAt: result.finishedAt,
       });
+      break;
     case "code_analyzer":
     case "doc_writer":
     default:
-      return createTask({
+      task = createTask({
         id: `${result.id}-followup`,
         type: "project_task",
         goal: `${result.agentType} result: ${summary}`,
@@ -91,7 +94,9 @@ function mapResultToTask(result: AgentResult): Task {
         energyCost: 5,
         createdAt: result.finishedAt,
       });
+      break;
   }
+  return task;
 }
 
 async function loadAgentResults(rootDir: string): Promise<AgentResult[]> {
@@ -129,3 +134,5 @@ export async function collectAgentFollowUpTasks(rootDir: string): Promise<Task[]
   await markResultsConsumed(rootDir, completed.map((result) => result.id));
   return tasks;
 }
+
+export { mapResultToTask };
