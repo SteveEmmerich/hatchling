@@ -2,9 +2,15 @@ import fs from "fs/promises";
 import path from "path";
 import { existsSync } from "fs";
 import { PathGuard } from "../system/pathGuard.js";
-import { recordEpisodeEntry, getRecentEpisodes, storeKnowledgeEntry, updateSocialMemoryEntry, appendNarrativeEntry } from "../memory/memory_manager.js";
+import {
+  recordEpisodeEntry,
+  getRecentEpisodes,
+  storeKnowledgeEntry,
+  updateSocialMemoryEntry,
+  appendNarrativeEntry,
+  loadNarrativeMemory,
+} from "../memory/memory_manager.js";
 import { loadSocialMemory } from "../memory/social_memory.js";
-import { loadPersonalityState, savePersonalityState, type PersonalityState } from "../system/personality-adaptation.js";
 import { createHindbrainInterface } from "./hindbrain_interface.js";
 
 export type ReflectionEventType =
@@ -91,6 +97,41 @@ interface CuriosityState {
 }
 
 const CURIOSITY_STATE_FILE = "brain/curiosity_state.json";
+const REFLECTION_SIGNALS_FILE = "brain/reflection_signals.json";
+const MUTATION_SUGGESTIONS_FILE = "brain/mutation_suggestions.json";
+
+export interface ReflectionSignal {
+  id: string;
+  timestamp: string;
+  confidenceDelta: number;
+  curiosityDelta: number;
+  trustDelta: number;
+  userId?: string;
+  source?: string;
+  consumed?: boolean;
+  consumedAt?: string;
+}
+
+export interface ReflectionSignalState {
+  version: 1;
+  signals: ReflectionSignal[];
+}
+
+export interface MutationSuggestionRecord {
+  id: string;
+  suggestion: string;
+  confidence: number;
+  createdAt: string;
+  source?: string;
+  status: "pending" | "approved_for_pipeline" | "rejected_for_now";
+  reviewedAt?: string;
+  reason?: string;
+}
+
+export interface MutationSuggestionState {
+  version: 1;
+  suggestions: MutationSuggestionRecord[];
+}
 
 function nowIso(now: Date): string {
   return now.toISOString();
@@ -199,33 +240,81 @@ function computeBehavioralAdjustments(input: ReflectionInput, reward?: number): 
   };
 }
 
-async function applyBehavioralAdjustments(
-  rootDir: string,
-  adjustments: BehavioralAdjustment,
-  now: Date,
-): Promise<void> {
-  if (Math.abs(adjustments.confidenceDelta) > 0.001) {
-    const state = await loadPersonalityState(rootDir);
-    state.signals.confidence = clamp(state.signals.confidence + adjustments.confidenceDelta, 0, 10);
-    state.lastUpdatedAt = nowIso(now);
-    await savePersonalityState(rootDir, state);
+async function loadReflectionSignals(rootDir: string): Promise<ReflectionSignalState> {
+  const target = path.join(rootDir, REFLECTION_SIGNALS_FILE);
+  if (!existsSync(target)) return { version: 1, signals: [] };
+  try {
+    const parsed = JSON.parse(await fs.readFile(target, "utf-8")) as ReflectionSignalState;
+    if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.signals)) {
+      return { version: 1, signals: [] };
+    }
+    return parsed;
+  } catch {
+    return { version: 1, signals: [] };
   }
+}
 
-  if (Math.abs(adjustments.curiosityDelta) > 0.001) {
-    const curiosity = await loadCuriosityState(rootDir, now);
-    const updated = clamp(curiosity.adjustedCuriosity + adjustments.curiosityDelta, 1, 10);
-    curiosity.adjustedCuriosity = Number(updated.toFixed(2));
-    curiosity.lastCalculated = nowIso(now);
-    curiosity.adjustments = [
-      ...(curiosity.adjustments || []),
-      {
-        timestamp: nowIso(now),
-        reason: "reflection",
-        delta: Number(adjustments.curiosityDelta.toFixed(2)),
-      },
-    ].slice(-50);
-    await saveCuriosityState(rootDir, curiosity);
+async function saveReflectionSignals(rootDir: string, state: ReflectionSignalState): Promise<void> {
+  PathGuard.setRoot(rootDir);
+  const target = await PathGuard.validatePath(REFLECTION_SIGNALS_FILE, "write");
+  await fs.mkdir(path.dirname(target), { recursive: true });
+  await fs.writeFile(target, JSON.stringify(state, null, 2), "utf-8");
+}
+
+async function appendReflectionSignal(
+  rootDir: string,
+  signal: Omit<ReflectionSignal, "id">,
+): Promise<void> {
+  const state = await loadReflectionSignals(rootDir);
+  state.signals.push({
+    id: `signal_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    ...signal,
+  });
+  if (state.signals.length > 200) {
+    state.signals = state.signals.slice(-200);
   }
+  await saveReflectionSignals(rootDir, state);
+}
+
+async function loadMutationSuggestions(rootDir: string): Promise<MutationSuggestionState> {
+  const target = path.join(rootDir, MUTATION_SUGGESTIONS_FILE);
+  if (!existsSync(target)) return { version: 1, suggestions: [] };
+  try {
+    const parsed = JSON.parse(await fs.readFile(target, "utf-8")) as MutationSuggestionState;
+    if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.suggestions)) {
+      return { version: 1, suggestions: [] };
+    }
+    return parsed;
+  } catch {
+    return { version: 1, suggestions: [] };
+  }
+}
+
+async function saveMutationSuggestions(rootDir: string, state: MutationSuggestionState): Promise<void> {
+  PathGuard.setRoot(rootDir);
+  const target = await PathGuard.validatePath(MUTATION_SUGGESTIONS_FILE, "write");
+  await fs.mkdir(path.dirname(target), { recursive: true });
+  await fs.writeFile(target, JSON.stringify(state, null, 2), "utf-8");
+}
+
+async function appendMutationSuggestion(
+  rootDir: string,
+  suggestion: MutationSuggestion,
+  source?: string,
+): Promise<void> {
+  const state = await loadMutationSuggestions(rootDir);
+  state.suggestions.push({
+    id: `mut_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    suggestion: suggestion.suggestion,
+    confidence: suggestion.confidence,
+    createdAt: new Date().toISOString(),
+    source,
+    status: "pending",
+  });
+  if (state.suggestions.length > 200) {
+    state.suggestions = state.suggestions.slice(-200);
+  }
+  await saveMutationSuggestions(rootDir, state);
 }
 
 function buildNarrativeEntry(input: ReflectionInput, outcome: string, maxLength: number): string {
@@ -345,17 +434,31 @@ export async function reflectEvent(
   const adjustments = computeBehavioralAdjustments(input, reward);
   adjustments.trustDelta = trustDeltaApplied;
   result.stateAdjustments = adjustments;
-  await applyBehavioralAdjustments(rootDir, adjustments, now);
+  if (Math.abs(adjustments.confidenceDelta) > 0.001 || Math.abs(adjustments.curiosityDelta) > 0.001 || Math.abs(adjustments.trustDelta) > 0.001) {
+    await appendReflectionSignal(rootDir, {
+      timestamp: input.timestamp || nowIso(now),
+      confidenceDelta: adjustments.confidenceDelta,
+      curiosityDelta: adjustments.curiosityDelta,
+      trustDelta: adjustments.trustDelta,
+      userId: input.user?.id,
+      source: input.type,
+      consumed: false,
+    });
+  }
 
   if (shouldWriteNarrative(input, reward)) {
     const entry = buildNarrativeEntry(input, outcome, options.maxNarrativeLength ?? 200);
-    await appendNarrativeEntry(rootDir, entry);
-    result.narrativeEntry = entry;
+    const narrative = await loadNarrativeMemory(rootDir);
+    if (!narrative.includes(entry)) {
+      await appendNarrativeEntry(rootDir, entry);
+      result.narrativeEntry = entry;
+    }
   }
 
   const mutation = await maybeSuggestMutation(input, outcome, options);
   if (mutation) {
     result.mutationSuggestions.push(mutation);
+    await appendMutationSuggestion(rootDir, mutation, input.type);
   }
 
   return result;

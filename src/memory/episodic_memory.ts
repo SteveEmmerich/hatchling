@@ -10,6 +10,9 @@ export interface Episode {
   outcome?: string;
   reward?: number;
   context?: Record<string, unknown>;
+  consolidated?: boolean;
+  consolidatedAt?: string;
+  summaryOf?: string;
 }
 
 export interface EpisodicMemoryState {
@@ -28,6 +31,9 @@ function normalizeEpisode(entry: Episode): Episode {
     ...entry,
     timestamp: entry.timestamp || nowIso(),
     event: String(entry.event || "").trim(),
+    consolidated: Boolean(entry.consolidated),
+    consolidatedAt: entry.consolidatedAt,
+    summaryOf: entry.summaryOf,
   };
 }
 

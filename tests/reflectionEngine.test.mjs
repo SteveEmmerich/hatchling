@@ -134,31 +134,22 @@ test("reflection produces mutation suggestions without executing them", async ()
 test("confidence curiosity trust adjustments are conservative and bounded", async () => {
   const root = await setupRoot();
   const { reflectEvent } = await import("../dist/brain/reflection_engine.js");
-  const { loadPersonalityState } = await import("../dist/system/personality-adaptation.js");
 
-  const beforePersonality = await loadPersonalityState(root);
-  const beforeConfidence = beforePersonality.signals.confidence;
-  const beforeCuriosity = JSON.parse(
-    await fs.readFile(path.join(root, "brain", "curiosity_state.json"), "utf-8"),
-  ).adjustedCuriosity;
-
-  await reflectEvent(root, {
+  const output = await reflectEvent(root, {
     type: "task",
     outcome: "High reward outcome",
     reward: 0.9,
     user: { id: "user1", sentiment: "positive" },
   });
 
-  const afterPersonality = await loadPersonalityState(root);
-  const afterConfidence = afterPersonality.signals.confidence;
-  const afterCuriosity = JSON.parse(
-    await fs.readFile(path.join(root, "brain", "curiosity_state.json"), "utf-8"),
-  ).adjustedCuriosity;
+  assert.ok(Math.abs(output.stateAdjustments.confidenceDelta) <= 0.3);
+  assert.ok(Math.abs(output.stateAdjustments.curiosityDelta) <= 0.3);
+  assert.ok(Math.abs(output.stateAdjustments.trustDelta) <= 3);
 
-  assert.ok(Math.abs(afterConfidence - beforeConfidence) <= 0.3);
-  assert.ok(afterConfidence <= 10 && afterConfidence >= 0);
-  assert.ok(Math.abs(afterCuriosity - beforeCuriosity) <= 0.3);
-  assert.ok(afterCuriosity <= 10 && afterCuriosity >= 1);
+  const signalFile = JSON.parse(
+    await fs.readFile(path.join(root, "brain", "reflection_signals.json"), "utf-8"),
+  );
+  assert.ok(signalFile.signals.length >= 1);
 
   await fs.rm(root, { recursive: true, force: true });
 });
