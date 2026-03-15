@@ -12,6 +12,7 @@ import {
   parsePersonalityInput,
   suggestNameFromText,
 } from "./identity-co-creation.js";
+import { extractBirthSeed, mergeBirthSeeds, type BirthSeed } from "./birth-extraction.js";
 
 function preferPracticalPrompt(candidate: string, fallback: string): string {
   const normalized = String(candidate || "").replace(/\s+/g, " ").trim();
@@ -85,6 +86,11 @@ Suggest 3 short names (1-2 words max each). Reply with ONLY a comma-separated li
 }
 
 export async function runHindbrainDiscovery(): Promise<Identity> {
+  const { identity } = await runHindbrainBirth();
+  return identity;
+}
+
+export async function runHindbrainBirth(): Promise<{ identity: Identity; seed: BirthSeed }> {
   console.log("🧠 Using internal Hindbrain for discovery...");
 
   try {
@@ -95,6 +101,8 @@ export async function runHindbrainDiscovery(): Promise<Identity> {
     );
     throw error;
   }
+
+  const seedPieces: Array<Partial<BirthSeed>> = [];
 
   const intro = await generateResponse(
     "Greet the user like a newly-awake hatchling. Ask who they are and if the hatchling has a name yet. Keep it short and conversational.",
@@ -116,10 +124,31 @@ export async function runHindbrainDiscovery(): Promise<Identity> {
     throw new Error("Discovery cancelled by user");
   }
 
-  const inferred = inferIdentityFromNarrative(String(identityNarrative));
+  const narrativeText = String(identityNarrative);
+  const inferred = inferIdentityFromNarrative(narrativeText);
+  seedPieces.push(extractBirthSeed(narrativeText));
   let draftName = inferred.name;
   let draftPurpose = inferred.purpose;
   let draftPersonality = inferred.personality || [];
+
+  if (!seedPieces[0]?.userName) {
+    const userPrompt = await generateResponse(
+      "Ask the user what you should call them, in one short friendly sentence.",
+    );
+    clack.log.message(`🤖 ${preferPracticalPrompt(userPrompt, "What should I call you?")}`);
+    const userResponse = await clack.text({
+      message: "You",
+      placeholder: "Your name (optional)",
+    });
+    if (clack.isCancel(userResponse)) {
+      await shutdown().catch(() => {});
+      throw new Error("Discovery cancelled by user");
+    }
+    const userText = String(userResponse || "").trim();
+    if (userText) {
+      seedPieces.push(extractBirthSeed(userText));
+    }
+  }
 
   if (!draftName) {
     const nameQuestion = await generateResponse(
@@ -141,6 +170,7 @@ export async function runHindbrainDiscovery(): Promise<Identity> {
       throw new Error("Discovery cancelled by user");
     }
     const rawNameResponse = String(nameResponse).trim();
+    seedPieces.push(extractBirthSeed(rawNameResponse));
     const inferredName = inferIdentityFromNarrative(rawNameResponse).name;
     if (looksLikeNameDeferral(rawNameResponse) || looksLikeQuestion(rawNameResponse)) {
       const options = await proposeNameWithHindbrain(
@@ -175,12 +205,12 @@ export async function runHindbrainDiscovery(): Promise<Identity> {
 
   if (!draftPurpose) {
     const purposeQuestion = await generateResponse(
-      `Ask for a one-sentence practical purpose for an agent named "${draftName || "this hatchling"}".`,
+      `Ask what kinds of things you should do together with "${draftName || "this hatchling"}". Keep it one sentence.`,
     );
     clack.log.message(
       `🤖 ${preferPracticalPrompt(
         purposeQuestion,
-        `What is ${draftName || "this hatchling"} meant to do day-to-day? One sentence is enough.`,
+        `What kinds of things should we do together? One sentence is enough.`,
       )}`,
     );
 
@@ -194,42 +224,56 @@ export async function runHindbrainDiscovery(): Promise<Identity> {
     }
     draftPurpose = inferIdentityFromNarrative(String(purposeResponse)).purpose
       || String(purposeResponse).trim();
+    seedPieces.push(extractBirthSeed(String(purposeResponse)));
   }
 
   if (!draftPersonality.length) {
     const personalityQuestion = await generateResponse(
-      "Ask for 3-5 practical personality traits as a comma-separated list (example: curious, direct, calm).",
+      "Ask for a couple of personality traits. Mention they can respond with 2-4 words or skip.",
     );
     clack.log.message(
       `🤖 ${preferPracticalPrompt(
         personalityQuestion,
-        "What personality traits should it have? Use 3-5 comma-separated traits.",
+        "Any personality traits you want me to start with? 2-4 words is enough.",
       )}`,
     );
 
     const personalityResponse = await clack.text({
       message: "You",
-      placeholder: "Type your response...",
+      placeholder: "curious, calm (optional)",
     });
     if (clack.isCancel(personalityResponse)) {
       await shutdown().catch(() => {});
       throw new Error("Discovery cancelled by user");
     }
     draftPersonality = parsePersonalityInput(String(personalityResponse));
+    seedPieces.push(extractBirthSeed(String(personalityResponse)));
     if (!draftPersonality.length) {
-      clack.log.message(
-        "🤖 I didn't catch clean traits there. Give me 3-5 short traits like: curious, practical, calm",
-      );
-      const retryPersonality = await clack.text({
-        message: "You",
-        placeholder: "curious, practical, calm",
-      });
-      if (clack.isCancel(retryPersonality)) {
-        await shutdown().catch(() => {});
-        throw new Error("Discovery cancelled by user");
-      }
-      draftPersonality = parsePersonalityInput(String(retryPersonality));
+      // Allow skipping traits for now.
+      draftPersonality = [];
     }
+  }
+
+  const archetypeQuestion = await generateResponse(
+    "Ask gently if there is a metaphor or archetype for how the hatchling should feel. Keep it optional.",
+  );
+  clack.log.message(
+    `🤖 ${preferPracticalPrompt(
+      archetypeQuestion,
+      "If you want, give me a metaphor or archetype to grow into (optional).",
+    )}`,
+  );
+  const archetypeResponse = await clack.text({
+    message: "You",
+    placeholder: "optional",
+  });
+  if (clack.isCancel(archetypeResponse)) {
+    await shutdown().catch(() => {});
+    throw new Error("Discovery cancelled by user");
+  }
+  const archetypeText = String(archetypeResponse || "").trim();
+  if (archetypeText) {
+    seedPieces.push(extractBirthSeed(archetypeText));
   }
 
   const defaultName = normalizeNameCandidate(draftName || "")
@@ -274,7 +318,7 @@ export async function runHindbrainDiscovery(): Promise<Identity> {
     identityData.personality = ["curious", "loyal"];
   }
 
-  while (true) {
+  for (let attempts = 0; attempts < 2; attempts += 1) {
     clack.log.message("");
     clack.log.message("🤖 Let's confirm who this hatchling is:");
     clack.log.message(`   Name: ${identityData.name}`);
@@ -351,6 +395,7 @@ export async function runHindbrainDiscovery(): Promise<Identity> {
         throw new Error("Discovery cancelled by user");
       }
       identityData.purpose = String(next).trim() || identityData.purpose;
+      seedPieces.push(extractBirthSeed(String(next)));
     }
 
     if (reviseChoice === "personality" || reviseChoice === "all") {
@@ -380,5 +425,11 @@ export async function runHindbrainDiscovery(): Promise<Identity> {
 
   clack.log.success(`✨ Identity created: ${validation.data.name}`);
   await shutdown().catch(() => {});
-  return validation.data;
+  const seed = mergeBirthSeeds(seedPieces);
+  seed.organismName = validation.data.name;
+  seed.purposeHint = validation.data.purpose;
+  if (!seed.personalityHints || seed.personalityHints.length === 0) {
+    seed.personalityHints = validation.data.personality;
+  }
+  return { identity: validation.data, seed };
 }

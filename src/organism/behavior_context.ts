@@ -46,6 +46,9 @@ export interface SelfModel {
   };
   strengths: string[];
   weaknesses: string[];
+  userName?: string;
+  archetype?: string;
+  collaborationGoals?: string[];
   preferences: {
     planningStyle: "plan-first" | "balanced" | "act-first";
     riskPosture: "cautious" | "balanced" | "bold";
@@ -195,6 +198,9 @@ function defaultSelfModel(identity: { name: string; purpose: string; personality
     },
     strengths: traits.slice(0, 3),
     weaknesses: [],
+    userName: undefined,
+    archetype: undefined,
+    collaborationGoals: [],
     preferences: {
       planningStyle: "balanced",
       riskPosture: "balanced",
@@ -214,6 +220,11 @@ function sanitizeSelfModel(input: unknown, fallback: SelfModel): SelfModel {
   const planningStyle = String(prefRaw.planningStyle || fallback.preferences.planningStyle) as SelfModel["preferences"]["planningStyle"];
   const riskPosture = String(prefRaw.riskPosture || fallback.preferences.riskPosture) as SelfModel["preferences"]["riskPosture"];
   const toolPreference = String(prefRaw.toolPreference || fallback.preferences.toolPreference) as SelfModel["preferences"]["toolPreference"];
+  const userName = typeof record.userName === "string" ? record.userName : fallback.userName;
+  const archetype = typeof record.archetype === "string" ? record.archetype : fallback.archetype;
+  const collaborationGoals = Array.isArray(record.collaborationGoals)
+    ? (record.collaborationGoals as string[]).map((value) => String(value)).filter(Boolean).slice(0, 6)
+    : fallback.collaborationGoals;
   const normalizedPlanning = planningStyle === "plan-first" || planningStyle === "act-first" ? planningStyle : "balanced";
   const normalizedRisk = riskPosture === "cautious" || riskPosture === "bold" ? riskPosture : "balanced";
   const normalizedTool = toolPreference === "light" || toolPreference === "heavy" ? toolPreference : "balanced";
@@ -226,6 +237,9 @@ function sanitizeSelfModel(input: unknown, fallback: SelfModel): SelfModel {
     },
     strengths,
     weaknesses,
+    userName,
+    archetype,
+    collaborationGoals,
     preferences: {
       planningStyle: normalizedPlanning,
       riskPosture: normalizedRisk,

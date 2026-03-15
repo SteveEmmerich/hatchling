@@ -225,6 +225,9 @@ export async function generateDNAFiles(
         },
         strengths: data.personality.slice(0, 3),
         weaknesses: [],
+        userName: null,
+        archetype: null,
+        collaborationGoals: [],
         preferences: {
           planningStyle: "balanced",
           riskPosture: "balanced",

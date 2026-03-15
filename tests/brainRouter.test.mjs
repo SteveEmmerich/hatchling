@@ -148,13 +148,14 @@ test("brain router uses forebrain when available and falls back when unavailable
 test("interactive discovery preserves seed identity behavior", async () => {
   const { runInteractiveDiscovery } = await import("../dist/system/discovery.js");
 
-  const identity = await runInteractiveDiscovery("hindbrain", "hindbrain-1b", {
+  const discovery = await runInteractiveDiscovery("hindbrain", "hindbrain-1b", {
     name: "seed",
     purpose: "seed purpose",
     personality: ["curious"],
   });
 
-  assert.equal(identity.name, "seed");
-  assert.equal(identity.purpose, "seed purpose");
-  assert.equal(identity.personality[0], "curious");
+  assert.equal(discovery.identity.name, "seed");
+  assert.equal(discovery.identity.purpose, "seed purpose");
+  assert.equal(discovery.identity.personality[0], "curious");
+  assert.equal(discovery.seed.organismName, "seed");
 });
