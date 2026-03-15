@@ -1,8 +1,12 @@
 import { PathGuard } from './pathGuard.js';
 import { execSync, spawn } from 'child_process';
 import fs from 'fs/promises';
+import { reflectSleepCycle } from '../brain/reflection_engine.js';
 
-async function synthesizeExperience(root: string, day: string): Promise<void> {
+async function synthesizeExperience(root: string, day: string): Promise<{
+  eventCount: number;
+  typeCounts: Record<string, number>;
+}> {
   const telemetryDir = await PathGuard.validatePath("memory/telemetry", "read");
   let telemetryFiles: string[] = [];
   try {
@@ -45,6 +49,8 @@ async function synthesizeExperience(root: string, day: string): Promise<void> {
     "",
   ].join("\n");
   await fs.appendFile(experiencePath, `${note}\n`);
+
+  return { eventCount, typeCounts };
 }
 
 export async function sleep() {
@@ -72,7 +78,13 @@ export async function sleep() {
 
   // 2. Synthesis
   console.log('🧠 Synthesizing experiences...');
-  await synthesizeExperience(root, today);
+  const synthesis = await synthesizeExperience(root, today);
+  await reflectSleepCycle(root, {
+    day: today,
+    telemetryCount: synthesis.eventCount,
+    typeCounts: synthesis.typeCounts,
+    timestamp: new Date().toISOString(),
+  });
   // Clear staging memory after snapshotting and synthesis.
   try {
     const stagingPath = await PathGuard.validatePath('memory/STAGING_MEMORY.md', 'write');

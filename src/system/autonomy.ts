@@ -13,6 +13,7 @@ import {
   synthesizeStrategicObjectives,
   type StrategyGoal,
 } from "./autonomy-strategy.js";
+import { reflectEvent } from "../brain/reflection_engine.js";
 
 const AUTONOMY_LOG_FILE = "brain/autonomy_runs.json";
 
@@ -254,6 +255,21 @@ export async function runAutonomousEvolution(
   if (useStrategy) {
     await applyRunToStrategy(rootDir, steps);
     await appendAutonomyReflection(rootDir, result);
+    const executed = steps.filter((step) => step.status === "executed").length;
+    const failed = steps.filter((step) => step.status === "failed").length;
+    const blocked = steps.filter((step) => step.status === "blocked").length;
+    await reflectEvent(rootDir, {
+      type: "autonomy",
+      outcome: `Autonomy run ${result.ok ? "completed" : "stopped"} (${run})`,
+      result: `executed=${executed}, failed=${failed}, blocked=${blocked}`,
+      context: {
+        goal,
+        taskType: "autonomy",
+        metadata: { runId: run },
+      },
+      timestamp: new Date().toISOString(),
+      allowMutationSuggestion: false,
+    });
   }
   return result;
 }
