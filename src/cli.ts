@@ -2203,6 +2203,34 @@ const main = defineCommand({
       },
     }),
 
+    reflection: defineCommand({
+      meta: {
+        description: "Inspect reflection and behavior tuning signals",
+      },
+      args: {
+        json: {
+          type: "boolean",
+          description: "Print machine-readable output",
+          default: false,
+        },
+      },
+      async run({ args }) {
+        const activeInstance = await getActiveInstance();
+        if (!activeInstance) {
+          clack.log.error("No active instance found. Run 'hatchling init' first.");
+          process.exit(1);
+        }
+        const rootDir = getInstancePath(activeInstance);
+        const { getReflectionStatus, formatReflectionStatus } = await import("./brain/reflection_status.js");
+        const status = await getReflectionStatus(rootDir);
+        if (args.json) {
+          console.log(JSON.stringify(status, null, 2));
+          return;
+        }
+        console.log(formatReflectionStatus(status));
+      },
+    }),
+
     doctor: defineCommand({
       meta: {
         description: "Run environment and runtime health checks",
