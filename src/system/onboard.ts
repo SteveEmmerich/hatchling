@@ -6,6 +6,7 @@ import type { Identity } from "./identity-schema.js";
 import { ensureCuriosityState } from "../curiosity/curiosity_engine.js";
 import { ensureAgentState } from "../agents/agent_manager.js";
 import { ensureMemoryState } from "../memory/memory_manager.js";
+import { ensureTraitState } from "../organism/behavior_context.js";
 
 export interface OnboardOptions {
   provider: string;
@@ -40,6 +41,7 @@ export async function runSelfDiscovery(
     await ensureCuriosityState(instanceDir);
     await ensureAgentState(instanceDir);
     await ensureMemoryState(instanceDir);
+    await ensureTraitState(instanceDir);
 
     return instanceDir;
   } catch (error) {

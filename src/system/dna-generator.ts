@@ -184,4 +184,56 @@ export async function generateDNAFiles(
   for (const [file, content] of Object.entries(dna)) {
     await fs.writeFile(path.join(brainDir, file), content);
   }
+
+  const dnaDir = path.join(brainDir, "dna");
+  const selfDir = path.join(brainDir, "self");
+  await fs.mkdir(dnaDir, { recursive: true });
+  await fs.mkdir(selfDir, { recursive: true });
+  await fs.writeFile(
+    path.join(dnaDir, "traits.json"),
+    JSON.stringify(
+      {
+        version: 1,
+        traits: {
+          curiosity: 5,
+          confidence: 5,
+          trust: 50,
+          planningDepth: 5,
+          riskTolerance: 5,
+          toolBias: 5,
+          reflectionFrequency: 5,
+        },
+        updatedAt: now,
+      },
+      null,
+      2,
+    ),
+  );
+  await fs.writeFile(
+    path.join(dnaDir, "habits.json"),
+    JSON.stringify({ version: 1, habits: [] }, null, 2),
+  );
+  await fs.writeFile(
+    path.join(selfDir, "self_model.json"),
+    JSON.stringify(
+      {
+        version: 1,
+        identity: {
+          name: data.name,
+          purpose: data.purpose,
+          personality: data.personality,
+        },
+        strengths: data.personality.slice(0, 3),
+        weaknesses: [],
+        preferences: {
+          planningStyle: "balanced",
+          riskPosture: "balanced",
+          toolPreference: "balanced",
+        },
+        updatedAt: now,
+      },
+      null,
+      2,
+    ),
+  );
 }

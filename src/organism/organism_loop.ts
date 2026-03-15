@@ -13,6 +13,7 @@ import type { EvolvePlan } from "../system/evolve.js";
 import { generateCuriosityTasks } from "../curiosity/curiosity_engine.js";
 import { collectAgentFollowUpTasks } from "../agents/agent_followup.js";
 import { immuneSystem, toGateResult } from "../immune/immune_system.js";
+import { loadBehaviorContext } from "./behavior_context.js";
 
 export interface OrganismLoopOptions {
   now?: () => Date;
@@ -78,7 +79,8 @@ export async function runOrganismTick(rootDir: string, options: OrganismLoopOpti
   const now = options.now ? options.now() : new Date();
   const state = await loadOrganismState(rootDir);
   const energy = await getEnergyState(rootDir);
-  const weights = options.weights || DEFAULT_TASK_WEIGHTS;
+  const behaviorContext = await loadBehaviorContext(rootDir);
+  const weights = options.weights || behaviorContext.taskWeights || DEFAULT_TASK_WEIGHTS;
   const candidates = collectCandidateTasks(options);
   const sleepThreshold = options.sleepThreshold ?? DEFAULT_SLEEP_THRESHOLD;
   const criticalEnergyThreshold = options.criticalEnergyThreshold ?? DEFAULT_CRITICAL_THRESHOLD;
@@ -108,7 +110,10 @@ export async function runOrganismTick(rootDir: string, options: OrganismLoopOpti
   }
   const includeCuriosity = options.includeCuriosity ?? process.env.HATCHLING_DISABLE_CURIOSITY !== "1";
   if (includeCuriosity) {
-    const curiosityTasks = await generateCuriosityTasks(rootDir, energy.level, sleepThreshold, { now: options.now });
+    const curiosityTasks = await generateCuriosityTasks(rootDir, energy.level, sleepThreshold, {
+      now: options.now,
+      behaviorContext,
+    });
     candidates.push(...curiosityTasks);
   }
   if (energy.level <= sleepThreshold) {

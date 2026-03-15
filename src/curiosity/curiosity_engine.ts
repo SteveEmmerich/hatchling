@@ -3,6 +3,7 @@ import path from "path";
 import { existsSync } from "fs";
 import { PathGuard } from "../system/pathGuard.js";
 import { createTask, type Task } from "../tasks/task_types.js";
+import type { BehaviorContext } from "../organism/behavior_context.js";
 
 export type CuriosityTaskKind =
   | "explore_codebase"
@@ -21,6 +22,7 @@ export interface CuriosityState {
 
 export interface CuriosityOptions {
   now?: () => Date;
+  behaviorContext?: BehaviorContext;
 }
 
 export const CURIOSITY_STATE_FILE = "brain/curiosity.json";
@@ -77,7 +79,7 @@ function sanitizeCuriosityState(input: unknown, now: Date = new Date()): { state
   return { state, repaired };
 }
 
-function scoreBiases(state: CuriosityState): Array<{ kind: CuriosityTaskKind; score: number }> {
+function scoreBiases(state: CuriosityState, habitBias = 0): Array<{ kind: CuriosityTaskKind; score: number }> {
   const curiosityScale = clamp(state.curiosity, 0, 10) / 10;
   const entries = [
     { kind: "explore_codebase" as const, score: normalizeBias(state.exploration_bias) * 1.05 },
@@ -88,12 +90,12 @@ function scoreBiases(state: CuriosityState): Array<{ kind: CuriosityTaskKind; sc
   ];
   return entries.map((entry) => ({
     kind: entry.kind,
-    score: entry.score * (0.6 + curiosityScale * 0.4),
+    score: entry.score * (0.6 + curiosityScale * 0.4) * (1 + habitBias),
   }));
 }
 
-function resolveWeights(state: CuriosityState): Array<{ kind: CuriosityTaskKind; weight: number }> {
-  const scored = scoreBiases(state);
+function resolveWeights(state: CuriosityState, habitBias = 0): Array<{ kind: CuriosityTaskKind; weight: number }> {
+  const scored = scoreBiases(state, habitBias);
   const total = scored.reduce((sum, entry) => sum + entry.score, 0);
   if (total <= 0) {
     return scored.map((entry) => ({ kind: entry.kind, weight: 0.2 }));
@@ -128,11 +130,11 @@ function goalForKind(kind: CuriosityTaskKind): string {
   }
 }
 
-function priorityForKind(kind: CuriosityTaskKind, curiosity: number): number {
+function priorityForKind(kind: CuriosityTaskKind, curiosity: number, habitBoost = 0): number {
   const base = 3 + Math.round(clamp(curiosity, 0, 10) / 3);
   if (kind === "propose_mutation") return Math.max(3, base - 1);
   if (kind === "self_reflect") return Math.max(2, base - 2);
-  return Math.min(8, base);
+  return Math.min(8, base + Math.round(habitBoost));
 }
 
 function energyCostForKind(kind: CuriosityTaskKind): number {
@@ -201,14 +203,25 @@ export async function generateCuriosityTasks(
   if (currentEnergy <= sleepThreshold) return [];
   const state = await loadCuriosityState(rootDir);
   const now = options.now ? options.now() : new Date();
-  const weights = resolveWeights(state);
+  const habits = options.behaviorContext?.habits?.habits || [];
+  const habitBoost = habits
+    .filter((habit) => habit.key === "favor_curiosity" || habit.key === "favor_exploration")
+    .reduce((sum, habit) => sum + habit.weight, 0);
+  const mutationBias = habits
+    .filter((habit) => habit.key === "avoid_mutation")
+    .reduce((sum, habit) => sum + habit.weight, 0);
+  const weights = resolveWeights(state, clamp(habitBoost, 0, 0.3));
   const kinds = pickTopKinds(weights, 2);
+  const effectiveCuriosity = options.behaviorContext?.traits?.traits?.curiosity ?? state.curiosity;
   const tasks = kinds.map((kind) =>
     createTask({
       type: "curiosity_task",
       goal: `${kind}: ${goalForKind(kind)}`,
-      priority: priorityForKind(kind, state.curiosity),
-      energyCost: energyCostForKind(kind),
+      priority: priorityForKind(kind, effectiveCuriosity, habitBoost),
+      energyCost: Math.max(
+        1,
+        energyCostForKind(kind) + (kind === "propose_mutation" ? Math.round(mutationBias) : 0),
+      ),
       minEnergyRequired: Math.min(100, sleepThreshold + 1),
     }),
   );
