@@ -59,7 +59,8 @@ test("agent runner executes and records result", async () => {
   assert.ok(result);
   assert.equal(result.agentId, task.id);
   assert.equal(result.agentType, task.type);
-  assert.ok(result.output.includes("Goal:"));
+  assert.ok(result.output.length > 0);
+  assert.ok(result.result?.summary);
   assert.equal(active.length, 0);
   assert.ok(results.some((entry) => entry.agentId === task.id));
   await fs.rm(tmpRoot, { recursive: true, force: true });

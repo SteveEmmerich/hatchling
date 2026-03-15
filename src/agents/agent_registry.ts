@@ -1,6 +1,6 @@
-import type { AgentTask } from "./agent_types.js";
+import type { AgentTask, AgentStructuredResult } from "./agent_types.js";
 
-export type AgentRunner = (rootDir: string, task: AgentTask) => Promise<string>;
+export type AgentRunner = (rootDir: string, task: AgentTask) => Promise<AgentStructuredResult>;
 
 const registry = new Map<string, AgentRunner>();
 

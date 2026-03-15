@@ -34,9 +34,28 @@ export interface AgentResult {
   agentType: AgentType;
   status: AgentStatus;
   output: string;
+  result?: AgentStructuredResult;
   createdAt: string;
   finishedAt: string;
   consumedAt?: string;
+}
+
+export interface AgentFinding {
+  label: string;
+  detail: string;
+  severity?: "low" | "medium" | "high";
+}
+
+export interface AgentFollowupHint {
+  type: "project_task" | "curiosity_task" | "maintenance";
+  detail: string;
+}
+
+export interface AgentStructuredResult {
+  summary: string;
+  findings: AgentFinding[];
+  confidence: number;
+  suggestedFollowups?: AgentFollowupHint[];
 }
 
 export interface AgentHistoryEntry {

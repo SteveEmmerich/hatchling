@@ -40,6 +40,7 @@ function normalizeResult(entry: any): AgentResult | undefined {
   const agentType = typeof entry.agentType === "string" ? entry.agentType : "";
   const status = typeof entry.status === "string" ? entry.status : "";
   const output = typeof entry.output === "string" ? entry.output : "";
+  const result = entry.result && typeof entry.result === "object" ? entry.result : undefined;
   const createdAt = typeof entry.createdAt === "string" ? entry.createdAt : "";
   const finishedAt = typeof entry.finishedAt === "string" ? entry.finishedAt : "";
   if (!id || !agentId || !agentType || !status || !createdAt || !finishedAt) return undefined;
@@ -49,19 +50,21 @@ function normalizeResult(entry: any): AgentResult | undefined {
     agentType: agentType as AgentType,
     status: status as AgentResult["status"],
     output,
+    result: result as AgentResult["result"],
     createdAt,
     finishedAt,
     consumedAt: typeof entry.consumedAt === "string" ? entry.consumedAt : undefined,
   };
 }
 
-function summarizeOutput(output: string): string {
+function summarizeOutput(output: string, structuredSummary?: string): string {
+  if (structuredSummary) return structuredSummary.slice(0, 120);
   const line = output.split("\n").map((value) => value.trim()).find(Boolean);
   return line ? line.slice(0, 120) : "Agent result available.";
 }
 
 function mapResultToTask(result: AgentResult): Task {
-  const summary = summarizeOutput(result.output);
+  const summary = summarizeOutput(result.output, result.result?.summary);
   let task: Task;
   switch (result.agentType) {
     case "researcher":
