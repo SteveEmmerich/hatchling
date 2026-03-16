@@ -7,6 +7,7 @@ import { loadCuriosityState } from "../curiosity/curiosity_engine.js";
 import { loadBehaviorContext } from "./behavior_context.js";
 import { PathGuard } from "../system/pathGuard.js";
 import { loadSocialMemory } from "../memory/social_memory.js";
+import { getRecentSpawnLog } from "../agents/agent_manager.js";
 
 interface StatusSnapshot {
   energy: { level: number; max: number; lowEnergy: boolean };
@@ -19,6 +20,7 @@ interface StatusSnapshot {
   mutations: { pendingSuggestions: number };
   agents: { active: number };
   sleep: { lastLog?: string; commitHash?: string };
+  agentSpawn?: { goal: string; reason: string; type: string; createdAt: string };
   selfModel: { name: string; purpose: string; strengths: string[]; weaknesses: string[]; strategy: string; tone: string };
 }
 
@@ -134,6 +136,8 @@ export async function getOrganismStatus(rootDir: string): Promise<StatusSnapshot
   const activeAgents = await loadAgentCount(rootDir);
   const sleep = await loadSleepSummary(rootDir);
   const cycle = await loadCycleSummary(rootDir);
+  const spawnLog = await getRecentSpawnLog(rootDir, 1);
+  const lastSpawn = spawnLog[0];
 
   return {
     energy: { level: energy.level, max: 100, lowEnergy: energy.lowEnergy },
@@ -156,6 +160,9 @@ export async function getOrganismStatus(rootDir: string): Promise<StatusSnapshot
     mutations: { pendingSuggestions: pendingMutations },
     agents: { active: activeAgents },
     sleep,
+    agentSpawn: lastSpawn
+      ? { goal: lastSpawn.goal, reason: lastSpawn.reason, type: lastSpawn.agentType, createdAt: lastSpawn.createdAt }
+      : undefined,
     selfModel: {
       name: behavior.selfModel.identity.name,
       purpose: behavior.selfModel.identity.purpose,
@@ -183,6 +190,9 @@ export function formatOrganismStatus(status: StatusSnapshot): string {
   lines.push(`Reflection: pendingSignals=${status.reflection.pendingSignals}${status.reflection.lastNarrative ? ` · last=${status.reflection.lastNarrative}` : ""}`);
   lines.push(`Mutations: pending suggestions=${status.mutations.pendingSuggestions}`);
   lines.push(`Agents: active=${status.agents.active}`);
+  if (status.agentSpawn) {
+    lines.push(`Last agent spawn: ${status.agentSpawn.type} · ${status.agentSpawn.goal} · reason=${status.agentSpawn.reason}`);
+  }
   lines.push(`Sleep: last=${status.sleep.lastLog || "n/a"}${status.sleep.commitHash ? ` · commit=${status.sleep.commitHash}` : ""}`);
   lines.push(
     `Self-model: ${status.selfModel.name} · ${status.selfModel.purpose} · strengths=${status.selfModel.strengths.join(", ") || "n/a"} · strategy=${status.selfModel.strategy} · tone=${status.selfModel.tone}`,

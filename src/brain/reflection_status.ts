@@ -2,6 +2,7 @@ import fs from "fs/promises";
 import path from "path";
 import { existsSync } from "fs";
 import { loadOrganismState } from "../organism/state_manager.js";
+import { getRecentSpawnLog } from "../agents/agent_manager.js";
 import { mapResultToTask } from "../agents/agent_followup.js";
 
 interface EpisodeEntry {
@@ -65,6 +66,7 @@ export interface ReflectionStatusSnapshot {
   agentFollowUps: Array<{ finishedAt: string; agentType: string; taskType: string; goal: string; status: string }>;
   patterns: Array<{ event: string; count: number }>;
   curiosityAdjustments: CuriosityAdjustment[];
+  agentSpawns: Array<{ createdAt: string; agentType: string; goal: string; reason: string }>;
 }
 
 const EPISODIC_FILE = "brain/memory/episodic_memory.json";
@@ -309,6 +311,7 @@ export async function getReflectionStatus(rootDir: string): Promise<ReflectionSt
   const curiosityAdjustments = await loadCuriosityAdjustments(rootDir);
   const agentResults = await loadAgentResults(rootDir);
   const organism = await loadOrganismState(rootDir);
+  const spawnLog = await getRecentSpawnLog(rootDir, 5);
 
   const recentEpisodes = episodes.slice(-5);
   const curiosityTasks = filterCuriosityEpisodes(episodes.slice(-30));
@@ -335,6 +338,12 @@ export async function getReflectionStatus(rootDir: string): Promise<ReflectionSt
     agentFollowUps,
     patterns,
     curiosityAdjustments: curiosityAdjustments.slice(-5),
+    agentSpawns: spawnLog.map((entry) => ({
+      createdAt: entry.createdAt,
+      agentType: entry.agentType,
+      goal: entry.goal,
+      reason: entry.reason,
+    })),
   };
 }
 
@@ -378,6 +387,10 @@ export function formatReflectionStatus(status: ReflectionStatusSnapshot): string
   lines.push(`Agent follow-ups (recent): ${status.agentFollowUps.length}`);
   for (const entry of status.agentFollowUps) {
     lines.push(`- ${entry.finishedAt} · ${entry.agentType} -> ${entry.taskType}: ${entry.goal}`);
+  }
+  lines.push(`Agent spawns (recent): ${status.agentSpawns.length}`);
+  for (const entry of status.agentSpawns) {
+    lines.push(`- ${entry.createdAt} · ${entry.agentType} · ${entry.goal} · reason=${entry.reason}`);
   }
   lines.push(`Curiosity adjustments (recent): ${status.curiosityAdjustments.length}`);
   for (const entry of status.curiosityAdjustments) {

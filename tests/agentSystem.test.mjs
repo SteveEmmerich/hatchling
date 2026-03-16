@@ -17,10 +17,12 @@ test("agent state files are seeded correctly", async () => {
   const active = await readJson(path.join(tmpRoot, "brain", "agents", "active_agents.json"));
   const results = await readJson(path.join(tmpRoot, "brain", "agents", "agent_results.json"));
   const history = await readJson(path.join(tmpRoot, "brain", "agents", "agent_history.json"));
+  const spawns = await readJson(path.join(tmpRoot, "brain", "agents", "agent_spawn_log.json"));
 
   assert.ok(Array.isArray(active.agents));
   assert.ok(Array.isArray(results.results));
   assert.ok(Array.isArray(history.agents));
+  assert.ok(Array.isArray(spawns.entries));
   assert.equal(state.active.length, 0);
   await fs.rm(tmpRoot, { recursive: true, force: true });
 });
@@ -108,6 +110,7 @@ test("malformed agent state files are repaired safely", async () => {
   await fs.writeFile(path.join(tmpRoot, "brain", "agents", "active_agents.json"), "{bad", "utf-8");
   await fs.writeFile(path.join(tmpRoot, "brain", "agents", "agent_results.json"), "{bad", "utf-8");
   await fs.writeFile(path.join(tmpRoot, "brain", "agents", "agent_history.json"), "{bad", "utf-8");
+  await fs.writeFile(path.join(tmpRoot, "brain", "agents", "agent_spawn_log.json"), "{bad", "utf-8");
   process.env.HATCHLING_CONTEXT = "cli";
   const state = await ensureAgentState(tmpRoot);
   delete process.env.HATCHLING_CONTEXT;

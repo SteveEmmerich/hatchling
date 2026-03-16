@@ -15,6 +15,7 @@ async function setupInstance() {
   execSync("git init", { cwd: tmpRoot, stdio: "ignore" });
   execSync('git config user.name "Hatchling Test"', { cwd: tmpRoot, stdio: "ignore" });
   execSync('git config user.email "hatchling@test"', { cwd: tmpRoot, stdio: "ignore" });
+  execSync("git config commit.gpgsign false", { cwd: tmpRoot, stdio: "ignore" });
   execSync("git add .", { cwd: tmpRoot, stdio: "ignore" });
   execSync('git commit -m "init"', { cwd: tmpRoot, stdio: "ignore" });
   return tmpRoot;

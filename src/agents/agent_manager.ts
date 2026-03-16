@@ -14,12 +14,24 @@ import { executeAgentTask } from "./agent_runner.js";
 const ACTIVE_FILE = "brain/agents/active_agents.json";
 const RESULTS_FILE = "brain/agents/agent_results.json";
 const HISTORY_FILE = "brain/agents/agent_history.json";
+const SPAWN_LOG_FILE = "brain/agents/agent_spawn_log.json";
 
 type AgentFiles = {
   active: AgentTask[];
   results: AgentResult[];
   history: AgentHistoryEntry[];
+  spawnLog: AgentSpawnLogEntry[];
 };
+
+export interface AgentSpawnLogEntry {
+  id: string;
+  agentId: string;
+  agentType: AgentTask["type"];
+  goal: string;
+  reason: string;
+  createdAt: string;
+  parent: string;
+}
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -51,6 +63,7 @@ function sanitizeState(input: AgentFiles): AgentFiles {
     active: sanitizeArray<AgentTask>(input.active),
     results: sanitizeArray<AgentResult>(input.results),
     history: sanitizeArray<AgentHistoryEntry>(input.history),
+    spawnLog: sanitizeArray<AgentSpawnLogEntry>(input.spawnLog),
   };
 }
 
@@ -58,16 +71,19 @@ export async function ensureAgentState(rootDir: string): Promise<AgentFiles> {
   const activeRaw = await readJsonOrDefault(rootDir, ACTIVE_FILE, { agents: [] });
   const resultsRaw = await readJsonOrDefault(rootDir, RESULTS_FILE, { results: [] });
   const historyRaw = await readJsonOrDefault(rootDir, HISTORY_FILE, { agents: [] });
+  const spawnRaw = await readJsonOrDefault(rootDir, SPAWN_LOG_FILE, { entries: [] });
 
   const state = sanitizeState({
     active: sanitizeArray<AgentTask>((activeRaw as { agents?: unknown }).agents),
     results: sanitizeArray<AgentResult>((resultsRaw as { results?: unknown }).results),
     history: sanitizeArray<AgentHistoryEntry>((historyRaw as { agents?: unknown }).agents),
+    spawnLog: sanitizeArray<AgentSpawnLogEntry>((spawnRaw as { entries?: unknown }).entries),
   });
 
   await writeJson(rootDir, ACTIVE_FILE, { agents: state.active });
   await writeJson(rootDir, RESULTS_FILE, { results: state.results });
   await writeJson(rootDir, HISTORY_FILE, { agents: state.history });
+  await writeJson(rootDir, SPAWN_LOG_FILE, { entries: state.spawnLog });
 
   return state;
 }
@@ -80,6 +96,42 @@ export async function spawnAgent(rootDir: string, input: AgentTaskInput): Promis
   agents.push(task);
   await writeJson(rootDir, ACTIVE_FILE, { agents });
   return task;
+}
+
+export async function appendAgentSpawnLog(
+  rootDir: string,
+  entry: AgentSpawnLogEntry,
+): Promise<void> {
+  const payload = await readJsonOrDefault<{ entries?: AgentSpawnLogEntry[] }>(rootDir, SPAWN_LOG_FILE, { entries: [] });
+  const entries = sanitizeArray<AgentSpawnLogEntry>(payload.entries);
+  entries.push(entry);
+  const trimmed = entries.length > 200 ? entries.slice(-200) : entries;
+  await writeJson(rootDir, SPAWN_LOG_FILE, { entries: trimmed });
+}
+
+export async function spawnAgentWithReason(
+  rootDir: string,
+  input: AgentTaskInput,
+  reason: string,
+): Promise<AgentTask> {
+  const task = await spawnAgent(rootDir, input);
+  const entry: AgentSpawnLogEntry = {
+    id: `spawn_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    agentId: task.id,
+    agentType: task.type,
+    goal: task.goal,
+    reason,
+    createdAt: nowIso(),
+    parent: task.parent,
+  };
+  await appendAgentSpawnLog(rootDir, entry);
+  return task;
+}
+
+export async function getRecentSpawnLog(rootDir: string, limit = 5): Promise<AgentSpawnLogEntry[]> {
+  const payload = await readJsonOrDefault<{ entries?: AgentSpawnLogEntry[] }>(rootDir, SPAWN_LOG_FILE, { entries: [] });
+  const entries = sanitizeArray<AgentSpawnLogEntry>(payload.entries);
+  return entries.slice(-limit);
 }
 
 export async function listActiveAgents(rootDir: string): Promise<AgentTask[]> {
