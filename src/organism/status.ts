@@ -4,7 +4,7 @@ import { existsSync } from "fs";
 import { getEnergyState } from "./energy_system.js";
 import { loadOrganismState } from "./state_manager.js";
 import { loadCuriosityState } from "../curiosity/curiosity_engine.js";
-import { loadBehaviorContext } from "./behavior_context.js";
+import { loadBehaviorContext, formatInteractionPosture } from "./behavior_context.js";
 import { PathGuard } from "../system/pathGuard.js";
 import { loadSocialMemory } from "../memory/social_memory.js";
 import { getRecentSpawnLog } from "../agents/agent_manager.js";
@@ -23,6 +23,7 @@ interface StatusSnapshot {
   sleep: { lastLog?: string; commitHash?: string };
   agentSpawn?: { goal: string; reason: string; type: string; createdAt: string };
   selfModel: { name: string; purpose: string; strengths: string[]; weaknesses: string[]; strategy: string; tone: string };
+  posture: string;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -170,6 +171,7 @@ export async function getOrganismStatus(rootDir: string): Promise<StatusSnapshot
       strategy: behavior.strategyPreference,
       tone: behavior.responseStyle.tone,
     },
+    posture: formatInteractionPosture(behavior.interactionStyle, behavior.decisionPosture),
   };
 }
 
@@ -191,6 +193,7 @@ export function formatOrganismStatus(status: StatusSnapshot): string {
     `Mutations: pending=${status.mutations.pendingSuggestions} approved=${status.mutations.approvedSuggestions} rejected=${status.mutations.rejectedSuggestions}`,
   );
   lines.push(`Agents: active=${status.agents.active}`);
+  lines.push(`Posture: ${status.posture}`);
   if (status.agentSpawn) {
     lines.push(`Last agent spawn: ${status.agentSpawn.type} · ${status.agentSpawn.goal} · reason=${status.agentSpawn.reason}`);
   }

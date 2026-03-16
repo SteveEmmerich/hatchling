@@ -8,16 +8,19 @@ export interface PlanningInput {
   goal: string;
   context?: string[];
   constraints?: string[];
+  posture?: string;
 }
 
 export interface ReasoningInput {
   prompt: string;
   context?: string[];
+  posture?: string;
 }
 
 export interface SynthesisInput {
   items: string[];
   goal?: string;
+  posture?: string;
 }
 
 export type ForebrainResponder = (prompt: string) => Promise<string>;
@@ -83,6 +86,7 @@ export function createForebrainInterface(options: {
         `Goal: ${input.goal}`,
         input.constraints?.length ? `Constraints: ${input.constraints.join(", ")}` : "",
         input.context?.length ? `Context: ${input.context.join(" | ")}` : "",
+        input.posture ? `Posture: ${input.posture}` : "",
         "Respond with steps or bullets.",
       ]
         .filter(Boolean)
@@ -97,6 +101,7 @@ export function createForebrainInterface(options: {
       const prompt = [
         "Provide a concise reasoning response.",
         input.context?.length ? `Context: ${input.context.join(" | ")}` : "",
+        input.posture ? `Posture: ${input.posture}` : "",
         `Prompt: ${input.prompt}`,
       ]
         .filter(Boolean)
@@ -112,6 +117,7 @@ export function createForebrainInterface(options: {
         "Synthesize the following items into a short response.",
         input.goal ? `Goal: ${input.goal}` : "",
         `Items: ${input.items.join(" | ")}`,
+        input.posture ? `Posture: ${input.posture}` : "",
       ]
         .filter(Boolean)
         .join("\n");
@@ -128,14 +134,20 @@ export function buildHindbrainFallbackInput(
   input: PlanningInput | ReasoningInput | SynthesisInput,
 ): HindbrainFallbackInput {
   if ("items" in input) {
-    return { prompt: `Synthesize: ${input.goal || "summary"}`, context: input.items };
+    const context = [...input.items];
+    if (input.posture) context.push(`Posture: ${input.posture}`);
+    return { prompt: `Synthesize: ${input.goal || "summary"}`, context };
   }
   if ("goal" in input && !("prompt" in input)) {
+    const context = [...(input.context || []), ...(input.constraints || [])];
+    if (input.posture) context.push(`Posture: ${input.posture}`);
     return {
       prompt: `Plan for: ${input.goal}`,
-      context: [...(input.context || []), ...(input.constraints || [])],
+      context,
     };
   }
   const reasoning = input as ReasoningInput;
-  return { prompt: reasoning.prompt, context: reasoning.context };
+  const context = [...(reasoning.context || [])];
+  if (reasoning.posture) context.push(`Posture: ${reasoning.posture}`);
+  return { prompt: reasoning.prompt, context };
 }

@@ -40,6 +40,7 @@ test("status command prints a core organism snapshot", async () => {
   assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
   assert.match(result.stdout, /Hatchling Status/);
   assert.match(result.stdout, /Energy:/);
+  assert.match(result.stdout, /Posture:/);
   assert.match(result.stdout, /Self-model:/);
 
   await fs.rm(testHome, { recursive: true, force: true });

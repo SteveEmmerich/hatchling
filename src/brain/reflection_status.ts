@@ -5,6 +5,7 @@ import { loadOrganismState } from "../organism/state_manager.js";
 import { getRecentSpawnLog } from "../agents/agent_manager.js";
 import { mapResultToTask } from "../agents/agent_followup.js";
 import { loadMutationSuggestionStore } from "../mutation/mutation_suggestions.js";
+import { loadBehaviorContext, formatInteractionPosture } from "../organism/behavior_context.js";
 
 interface EpisodeEntry {
   timestamp: string;
@@ -71,6 +72,7 @@ export interface ReflectionStatusSnapshot {
   patterns: Array<{ event: string; count: number }>;
   curiosityAdjustments: CuriosityAdjustment[];
   agentSpawns: Array<{ createdAt: string; agentType: string; goal: string; reason: string }>;
+  postureSummary: string;
 }
 
 const EPISODIC_FILE = "brain/memory/episodic_memory.json";
@@ -308,6 +310,7 @@ export async function getReflectionStatus(rootDir: string): Promise<ReflectionSt
   const agentResults = await loadAgentResults(rootDir);
   const organism = await loadOrganismState(rootDir);
   const spawnLog = await getRecentSpawnLog(rootDir, 5);
+  const behavior = await loadBehaviorContext(rootDir);
 
   const recentEpisodes = episodes.slice(-5);
   const curiosityTasks = filterCuriosityEpisodes(episodes.slice(-30));
@@ -340,6 +343,7 @@ export async function getReflectionStatus(rootDir: string): Promise<ReflectionSt
       goal: entry.goal,
       reason: entry.reason,
     })),
+    postureSummary: formatInteractionPosture(behavior.interactionStyle, behavior.decisionPosture),
   };
 }
 
@@ -388,6 +392,7 @@ export function formatReflectionStatus(status: ReflectionStatusSnapshot): string
   for (const entry of status.agentSpawns) {
     lines.push(`- ${entry.createdAt} · ${entry.agentType} · ${entry.goal} · reason=${entry.reason}`);
   }
+  lines.push(`Posture: ${status.postureSummary}`);
   lines.push(`Curiosity adjustments (recent): ${status.curiosityAdjustments.length}`);
   for (const entry of status.curiosityAdjustments) {
     lines.push(`- ${entry.timestamp} · ${entry.reason} (${formatDelta(entry.delta)})`);

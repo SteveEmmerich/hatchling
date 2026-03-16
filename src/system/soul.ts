@@ -1,5 +1,6 @@
 import { PathGuard } from './pathGuard.js';
 import fs from 'fs/promises';
+import { loadBehaviorContext, formatInteractionPosture } from '../organism/behavior_context.js';
 
 export async function getAgentName(rootDir: string): Promise<string> {
   try {
@@ -51,10 +52,14 @@ export async function loadCompleteIdentity(rootDir: string): Promise<string> {
 export async function assemblePrompt(rootDir: string): Promise<string> {
   const identity = await loadCompleteIdentity(rootDir);
   const agentName = await getAgentName(rootDir);
+  const behavior = await loadBehaviorContext(rootDir);
+  const postureSummary = formatInteractionPosture(behavior.interactionStyle, behavior.decisionPosture);
 
   return `You are ${agentName}, an autonomous AI coding agent.
 
 ${identity}
+
+Interaction posture: ${postureSummary}
 
 You have access to tools for file operations, shell commands, and self-modification through mutation.
 When uncertain, ask clarifying questions. When confident, act autonomously within your constitutional bounds.

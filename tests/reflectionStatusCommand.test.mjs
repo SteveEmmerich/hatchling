@@ -41,6 +41,7 @@ test("reflection command prints a tuning snapshot", async () => {
   assert.match(result.stdout, /Reflection Tuning/);
   assert.match(result.stdout, /Adjustments/);
   assert.match(result.stdout, /Mutation suggestions/);
+  assert.match(result.stdout, /Posture:/);
 
   await fs.rm(testHome, { recursive: true, force: true });
 });

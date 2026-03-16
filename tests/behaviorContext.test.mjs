@@ -81,6 +81,9 @@ test("behavior context remains stable when trait state is minimal", async () => 
 
   const context = await loadBehaviorContext(root);
   assert.deepEqual(context.taskWeights, DEFAULT_TASK_WEIGHTS);
+  assert.equal(context.interactionStyle.askMode, "balanced");
+  assert.equal(context.interactionStyle.caution, "balanced");
+  assert.equal(context.decisionPosture.planning, "balanced");
 
   await fs.rm(root, { recursive: true, force: true });
 });
@@ -119,6 +122,66 @@ test("habits and self-model influence candidate task generation and strategy pre
 
   const preference = deriveStrategyPreference(context.traits.traits, context.selfModel);
   assert.equal(preference, "plan-first");
+  assert.ok(["ask_more_questions", "balanced", "act_directly"].includes(context.interactionStyle.askMode));
+
+  await fs.rm(root, { recursive: true, force: true });
+});
+
+test("interaction posture shifts with confidence and curiosity within bounds", async () => {
+  const root = await setupRoot();
+  const { loadBehaviorContext } = await import("../dist/organism/behavior_context.js");
+
+  await fs.writeFile(
+    path.join(root, "brain", "dna", "traits.json"),
+    JSON.stringify(
+      {
+        version: 1,
+        traits: {
+          curiosity: 1,
+          confidence: 8,
+          trust: 70,
+          planningDepth: 6,
+          riskTolerance: 8,
+          toolBias: 6,
+          reflectionFrequency: 4,
+        },
+        updatedAt: new Date().toISOString(),
+      },
+      null,
+      2,
+    ),
+    "utf-8",
+  );
+
+  const highContext = await loadBehaviorContext(root);
+  assert.equal(highContext.interactionStyle.caution, "confident");
+  assert.equal(highContext.interactionStyle.askMode, "act_directly");
+
+  await fs.writeFile(
+    path.join(root, "brain", "dna", "traits.json"),
+    JSON.stringify(
+      {
+        version: 1,
+        traits: {
+          curiosity: 9,
+          confidence: 2,
+          trust: 35,
+          planningDepth: 4,
+          riskTolerance: 2,
+          toolBias: 4,
+          reflectionFrequency: 6,
+        },
+        updatedAt: new Date().toISOString(),
+      },
+      null,
+      2,
+    ),
+    "utf-8",
+  );
+
+  const lowContext = await loadBehaviorContext(root);
+  assert.equal(lowContext.interactionStyle.caution, "cautious");
+  assert.equal(lowContext.interactionStyle.askMode, "ask_more_questions");
 
   await fs.rm(root, { recursive: true, force: true });
 });

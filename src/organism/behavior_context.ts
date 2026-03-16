@@ -69,6 +69,17 @@ export interface BehaviorContext {
   selfModel: SelfModel;
   reflection: ReflectionSignalSummary;
   strategyPreference: "plan-first" | "balanced" | "act-first" | "cautious";
+  decisionPosture: {
+    planning: "shallow" | "balanced" | "deep";
+    risk: "low" | "balanced" | "high";
+  };
+  interactionStyle: {
+    askMode: "ask_more_questions" | "act_directly" | "balanced";
+    caution: "cautious" | "balanced" | "confident";
+    toolUse: "tool_first" | "reason_first" | "balanced";
+    collaboration: "collaborative" | "independent" | "balanced";
+    verbosity: "concise" | "balanced" | "explanatory";
+  };
   responseStyle: {
     tone: "cautious" | "neutral" | "confident";
     riskTolerance: number;
@@ -314,6 +325,67 @@ function habitWeight(habits: HabitState, key: string): number {
     .reduce((sum, habit) => sum + habit.weight, 0);
 }
 
+function deriveInteractionPosture(
+  traits: TraitSignals,
+  habits: HabitState,
+  selfModel: SelfModel,
+): BehaviorContext["interactionStyle"] {
+  const curiosityBias =
+    (traits.curiosity - 5) / 2 +
+    habitWeight(habits, "favor_curiosity") * 2 -
+    habitWeight(habits, "prefer_decisive") * 2;
+  const askMode =
+    curiosityBias >= 2 ? "ask_more_questions" : curiosityBias <= -2 ? "act_directly" : "balanced";
+
+  const cautionScore = (traits.confidence - 5) / 2 + (traits.riskTolerance - 5) / 2;
+  const caution =
+    cautionScore <= -1.5 || selfModel.weaknesses.some((trait) => trait.includes("uncertain"))
+      ? "cautious"
+      : cautionScore >= 1.5
+        ? "confident"
+        : "balanced";
+
+  const toolBias =
+    (traits.toolBias - 5) / 2 +
+    habitWeight(habits, "favor_tools") * 2 -
+    habitWeight(habits, "avoid_tools") * 2;
+  const toolUse = toolBias >= 2 ? "tool_first" : toolBias <= -2 ? "reason_first" : "balanced";
+
+  const collaborationScore =
+    (traits.trust - 50) / 10 +
+    habitWeight(habits, "favor_collaboration") * 2 -
+    habitWeight(habits, "prefer_independent") * 2;
+  const collaboration =
+    collaborationScore >= 2 ? "collaborative" : collaborationScore <= -2 ? "independent" : "balanced";
+
+  const verbosityScore =
+    (traits.planningDepth - 5) / 2 +
+    (traits.reflectionFrequency - 5) / 2 +
+    habitWeight(habits, "prefer_explanations") * 2 -
+    habitWeight(habits, "prefer_concise") * 2;
+  const verbosity = verbosityScore >= 2 ? "explanatory" : verbosityScore <= -2 ? "concise" : "balanced";
+
+  return { askMode, caution, toolUse, collaboration, verbosity };
+}
+
+function deriveDecisionPosture(traits: TraitSignals): BehaviorContext["decisionPosture"] {
+  const planning = traits.planningDepth >= 7 ? "deep" : traits.planningDepth <= 3 ? "shallow" : "balanced";
+  const risk = traits.riskTolerance >= 7 ? "high" : traits.riskTolerance <= 3 ? "low" : "balanced";
+  return { planning, risk };
+}
+
+export function formatInteractionPosture(style: BehaviorContext["interactionStyle"], posture: BehaviorContext["decisionPosture"]): string {
+  return [
+    `ask=${style.askMode}`,
+    `caution=${style.caution}`,
+    `tool=${style.toolUse}`,
+    `collab=${style.collaboration}`,
+    `verbosity=${style.verbosity}`,
+    `planning=${posture.planning}`,
+    `risk=${posture.risk}`,
+  ].join(" ");
+}
+
 export function deriveTaskWeightsFromTraits(
   traits: TraitSignals,
   habits: HabitState,
@@ -356,6 +428,8 @@ export async function loadBehaviorContext(rootDir: string): Promise<BehaviorCont
   const { traits, habits, selfModel } = await ensureTraitState(rootDir);
   const reflection = await loadReflectionSignalSummary(rootDir);
   const strategyPreference = deriveStrategyPreference(traits.traits, selfModel);
+  const decisionPosture = deriveDecisionPosture(traits.traits);
+  const interactionStyle = deriveInteractionPosture(traits.traits, habits, selfModel);
   const tone: "cautious" | "neutral" | "confident" =
     traits.traits.confidence <= 3 ? "cautious" : traits.traits.confidence >= 7 ? "confident" : "neutral";
   const responseStyle = {
@@ -363,5 +437,15 @@ export async function loadBehaviorContext(rootDir: string): Promise<BehaviorCont
     riskTolerance: traits.traits.riskTolerance,
   };
   const taskWeights = deriveTaskWeightsFromTraits(traits.traits, habits, selfModel);
-  return { traits, habits, selfModel, reflection, strategyPreference, responseStyle, taskWeights };
+  return {
+    traits,
+    habits,
+    selfModel,
+    reflection,
+    strategyPreference,
+    decisionPosture,
+    interactionStyle,
+    responseStyle,
+    taskWeights,
+  };
 }
