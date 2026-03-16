@@ -4,6 +4,7 @@ import { existsSync } from "fs";
 import { loadOrganismState } from "../organism/state_manager.js";
 import { getRecentSpawnLog } from "../agents/agent_manager.js";
 import { mapResultToTask } from "../agents/agent_followup.js";
+import { loadMutationSuggestionStore } from "../mutation/mutation_suggestions.js";
 
 interface EpisodeEntry {
   timestamp: string;
@@ -21,12 +22,15 @@ interface ReflectionSignalEntry {
 }
 
 interface MutationSuggestionEntry {
-  suggestion: string;
+  summary: string;
   confidence: number;
   status: string;
-  source?: string;
+  sourceEvent?: string;
+  sourceReflection?: string;
   reason?: string;
   createdAt: string;
+  reviewedAt?: string;
+  reviewReason?: string;
 }
 
 interface CuriosityAdjustment {
@@ -72,7 +76,6 @@ export interface ReflectionStatusSnapshot {
 const EPISODIC_FILE = "brain/memory/episodic_memory.json";
 const NARRATIVE_FILE = "brain/memory/narrative.md";
 const REFLECTION_SIGNALS_FILE = "brain/reflection_signals.json";
-const MUTATION_SUGGESTIONS_FILE = "brain/mutation_suggestions.json";
 const CURIOSITY_STATE_FILE = "brain/curiosity_state.json";
 const AGENT_RESULTS_FILE = "brain/agents/agent_results.json";
 
@@ -143,25 +146,18 @@ async function loadReflectionSignals(rootDir: string): Promise<ReflectionSignalE
 }
 
 async function loadMutationSuggestions(rootDir: string): Promise<MutationSuggestionEntry[]> {
-  const payload = await readJsonOrDefault<{ suggestions?: unknown }>(rootDir, MUTATION_SUGGESTIONS_FILE, { suggestions: [] });
-  const raw = Array.isArray(payload.suggestions) ? payload.suggestions : [];
-  return raw
-    .map((entry) => {
-      if (!entry || typeof entry !== "object") return undefined;
-      const record = entry as Record<string, unknown>;
-      const suggestion = String(record.suggestion || "").trim();
-      const createdAt = String(record.createdAt || "").trim();
-      if (!suggestion || !createdAt) return undefined;
-      return {
-        suggestion,
-        confidence: clamp(Number(record.confidence || 0), 0, 1),
-        status: String(record.status || "pending"),
-        source: typeof record.source === "string" ? record.source : undefined,
-        reason: typeof record.reason === "string" ? record.reason : undefined,
-        createdAt,
-      };
-    })
-    .filter(Boolean) as MutationSuggestionEntry[];
+  const store = await loadMutationSuggestionStore(rootDir);
+  return store.suggestions.map((entry) => ({
+    summary: entry.summary,
+    confidence: clamp(Number(entry.confidence || 0), 0, 1),
+    status: entry.status,
+    sourceEvent: entry.sourceEvent,
+    sourceReflection: entry.sourceReflection,
+    reason: entry.reason,
+    createdAt: entry.createdAt,
+    reviewedAt: entry.reviewedAt,
+    reviewReason: entry.reviewReason,
+  }));
 }
 
 async function loadCuriosityAdjustments(rootDir: string): Promise<CuriosityAdjustment[]> {
@@ -377,7 +373,7 @@ export function formatReflectionStatus(status: ReflectionStatusSnapshot): string
   );
   for (const entry of status.mutationSuggestions.recent) {
     lines.push(
-      `- ${entry.createdAt} · ${entry.status} · ${entry.suggestion} (conf=${entry.confidence.toFixed(2)})${entry.source ? ` · source=${entry.source}` : ""}${entry.reason ? ` · reason=${entry.reason}` : ""}`,
+      `- ${entry.createdAt} · ${entry.status} · ${entry.summary} (conf=${entry.confidence.toFixed(2)})${entry.sourceEvent ? ` · source=${entry.sourceEvent}` : ""}${entry.reason ? ` · reason=${entry.reason}` : ""}${entry.reviewReason ? ` · review=${entry.reviewReason}` : ""}`,
     );
   }
   lines.push(`Curiosity tasks (recent): ${status.curiosityTasks.length}`);

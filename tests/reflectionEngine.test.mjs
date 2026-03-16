@@ -121,12 +121,17 @@ test("reflection produces mutation suggestions without executing them", async ()
       allowMutationSuggestion: true,
     },
     {
-      suggestMutation: async () => ({ suggestion: "Add a safer config validator", confidence: 0.6 }),
+      suggestMutation: async () => ({ summary: "Add a safer config validator", confidence: 0.6, reason: "Channel config failed" }),
     },
   );
 
   assert.equal(suggestion.mutationSuggestions.length, 1);
-  assert.match(suggestion.mutationSuggestions[0].suggestion, /validator/i);
+  assert.match(suggestion.mutationSuggestions[0].summary, /validator/i);
+  const store = JSON.parse(
+    await fs.readFile(path.join(root, "brain", "mutation_suggestions.json"), "utf-8"),
+  );
+  assert.ok(store.suggestions.length >= 1);
+  assert.match(store.suggestions[0].summary, /validator/i);
 
   await fs.rm(root, { recursive: true, force: true });
 });

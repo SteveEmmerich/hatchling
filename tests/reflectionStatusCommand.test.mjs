@@ -122,15 +122,17 @@ test("reflection status summarizes recent signals and suggestions", async () => 
     path.join(instancePath, "brain", "mutation_suggestions.json"),
     JSON.stringify(
       {
-        version: 1,
+        version: 2,
         suggestions: [
           {
             id: "mut1",
-            suggestion: "Add a small regression test",
+            summary: "Add a small regression test",
+            reason: "Avoid regression in deployment path",
             confidence: 0.7,
             createdAt: new Date().toISOString(),
-            source: "task",
-            status: "pending",
+            sourceEvent: "task",
+            status: "reviewed",
+            reviewedAt: new Date().toISOString(),
           },
         ],
       },

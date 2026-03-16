@@ -68,25 +68,28 @@ test("sleep consolidates memory, reviews signals, and restores energy idempotent
     path.join(instancePath, "brain", "mutation_suggestions.json"),
     JSON.stringify(
       {
-        version: 1,
+        version: 2,
         suggestions: [
           {
             id: "mut1",
-            suggestion: "Add safer config validation",
+            summary: "Add safer config validation for channel init",
+            reason: "Reduce config failures during onboarding",
             confidence: 0.7,
             createdAt: new Date().toISOString(),
             status: "pending",
           },
           {
             id: "mut2",
-            suggestion: "Add safer config validation",
+            summary: "Add safer config validation for channel init",
+            reason: "Avoid repeated misconfigurations",
             confidence: 0.6,
             createdAt: new Date().toISOString(),
             status: "pending",
           },
           {
             id: "mut3",
-            suggestion: "Consider a large rewrite",
+            summary: "Consider a large rewrite",
+            reason: "Feels too slow",
             confidence: 0.2,
             createdAt: new Date().toISOString(),
             status: "pending",
@@ -132,9 +135,11 @@ test("sleep consolidates memory, reviews signals, and restores energy idempotent
     await fs.readFile(path.join(instancePath, "brain", "mutation_suggestions.json"), "utf-8"),
   );
   const approved = suggestions.suggestions.filter((entry) => entry.status === "approved_for_pipeline");
+  const reviewed = suggestions.suggestions.filter((entry) => entry.status === "reviewed");
   const rejected = suggestions.suggestions.filter((entry) => entry.status === "rejected_for_now");
   assert.equal(approved.length, 1);
   assert.ok(rejected.length >= 2);
+  assert.ok(reviewed.length >= 0);
 
   const energy = JSON.parse(
     await fs.readFile(path.join(instancePath, "brain", "energy_state.json"), "utf-8"),

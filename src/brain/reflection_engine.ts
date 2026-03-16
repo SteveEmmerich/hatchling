@@ -12,6 +12,7 @@ import {
 } from "../memory/memory_manager.js";
 import { loadSocialMemory } from "../memory/social_memory.js";
 import { createHindbrainInterface } from "./hindbrain_interface.js";
+import { appendMutationSuggestion } from "../mutation/mutation_suggestions.js";
 
 export type ReflectionEventType =
   | "task"
@@ -71,7 +72,8 @@ export interface BehavioralAdjustment {
 }
 
 export interface MutationSuggestion {
-  suggestion: string;
+  summary: string;
+  reason?: string;
   confidence: number;
 }
 
@@ -98,7 +100,6 @@ interface CuriosityState {
 
 const CURIOSITY_STATE_FILE = "brain/curiosity_state.json";
 const REFLECTION_SIGNALS_FILE = "brain/reflection_signals.json";
-const MUTATION_SUGGESTIONS_FILE = "brain/mutation_suggestions.json";
 
 export interface ReflectionSignal {
   id: string;
@@ -115,22 +116,6 @@ export interface ReflectionSignal {
 export interface ReflectionSignalState {
   version: 1;
   signals: ReflectionSignal[];
-}
-
-export interface MutationSuggestionRecord {
-  id: string;
-  suggestion: string;
-  confidence: number;
-  createdAt: string;
-  source?: string;
-  status: "pending" | "approved_for_pipeline" | "rejected_for_now";
-  reviewedAt?: string;
-  reason?: string;
-}
-
-export interface MutationSuggestionState {
-  version: 1;
-  suggestions: MutationSuggestionRecord[];
 }
 
 function nowIso(now: Date): string {
@@ -276,47 +261,6 @@ async function appendReflectionSignal(
   await saveReflectionSignals(rootDir, state);
 }
 
-async function loadMutationSuggestions(rootDir: string): Promise<MutationSuggestionState> {
-  const target = path.join(rootDir, MUTATION_SUGGESTIONS_FILE);
-  if (!existsSync(target)) return { version: 1, suggestions: [] };
-  try {
-    const parsed = JSON.parse(await fs.readFile(target, "utf-8")) as MutationSuggestionState;
-    if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.suggestions)) {
-      return { version: 1, suggestions: [] };
-    }
-    return parsed;
-  } catch {
-    return { version: 1, suggestions: [] };
-  }
-}
-
-async function saveMutationSuggestions(rootDir: string, state: MutationSuggestionState): Promise<void> {
-  PathGuard.setRoot(rootDir);
-  const target = await PathGuard.validatePath(MUTATION_SUGGESTIONS_FILE, "write");
-  await fs.mkdir(path.dirname(target), { recursive: true });
-  await fs.writeFile(target, JSON.stringify(state, null, 2), "utf-8");
-}
-
-async function appendMutationSuggestion(
-  rootDir: string,
-  suggestion: MutationSuggestion,
-  source?: string,
-): Promise<void> {
-  const state = await loadMutationSuggestions(rootDir);
-  state.suggestions.push({
-    id: `mut_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-    suggestion: suggestion.suggestion,
-    confidence: suggestion.confidence,
-    createdAt: new Date().toISOString(),
-    source,
-    status: "pending",
-  });
-  if (state.suggestions.length > 200) {
-    state.suggestions = state.suggestions.slice(-200);
-  }
-  await saveMutationSuggestions(rootDir, state);
-}
-
 function buildNarrativeEntry(input: ReflectionInput, outcome: string, maxLength: number): string {
   const candidate = input.narrative ? normalizeText(input.narrative) : `${input.type}: ${outcome}`;
   if (candidate.length <= maxLength) return candidate;
@@ -344,7 +288,11 @@ async function maybeSuggestMutation(
     signals: { curiosity: 5 },
   });
   if (!suggestion.ok || !suggestion.data) return null;
-  return suggestion.data;
+  return {
+    summary: suggestion.data.suggestion,
+    confidence: suggestion.data.confidence,
+    reason: outcome,
+  };
 }
 
 export async function reflectEvent(
@@ -458,7 +406,14 @@ export async function reflectEvent(
   const mutation = await maybeSuggestMutation(input, outcome, options);
   if (mutation) {
     result.mutationSuggestions.push(mutation);
-    await appendMutationSuggestion(rootDir, mutation, input.type);
+    await appendMutationSuggestion(rootDir, {
+      summary: mutation.summary,
+      reason: mutation.reason || outcome,
+      confidence: mutation.confidence,
+      sourceEvent: input.type,
+      sourceReflection: input.context?.taskType,
+      createdAt: input.timestamp || nowIso(now),
+    }, now);
   }
 
   return result;

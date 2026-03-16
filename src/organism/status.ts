@@ -8,6 +8,7 @@ import { loadBehaviorContext } from "./behavior_context.js";
 import { PathGuard } from "../system/pathGuard.js";
 import { loadSocialMemory } from "../memory/social_memory.js";
 import { getRecentSpawnLog } from "../agents/agent_manager.js";
+import { summarizeMutationSuggestions } from "../mutation/mutation_suggestions.js";
 
 interface StatusSnapshot {
   energy: { level: number; max: number; lowEnergy: boolean };
@@ -17,7 +18,7 @@ interface StatusSnapshot {
   confidence: number;
   trustAverage: number;
   reflection: { pendingSignals: number; lastNarrative?: string };
-  mutations: { pendingSuggestions: number };
+  mutations: { pendingSuggestions: number; approvedSuggestions: number; rejectedSuggestions: number };
   agents: { active: number };
   sleep: { lastLog?: string; commitHash?: string };
   agentSpawn?: { goal: string; reason: string; type: string; createdAt: string };
@@ -82,15 +83,9 @@ async function loadReflectionSummary(rootDir: string): Promise<{ pendingSignals:
   return { pendingSignals: pending, lastNarrative: lastNarrative || undefined };
 }
 
-async function loadMutationSummary(rootDir: string): Promise<number> {
-  const payload = await readJsonOrDefault<{ suggestions?: Array<{ status?: string }> }>(
-    rootDir,
-    "brain/mutation_suggestions.json",
-    { suggestions: [] },
-  );
-  return Array.isArray(payload.suggestions)
-    ? payload.suggestions.filter((entry) => entry.status === "pending").length
-    : 0;
+async function loadMutationSummary(rootDir: string): Promise<{ pending: number; approved: number; rejected: number }> {
+  const summary = await summarizeMutationSuggestions(rootDir);
+  return { pending: summary.pending, approved: summary.approved, rejected: summary.rejected };
 }
 
 async function loadAgentCount(rootDir: string): Promise<number> {
@@ -132,7 +127,7 @@ export async function getOrganismStatus(rootDir: string): Promise<StatusSnapshot
   const behavior = await loadBehaviorContext(rootDir);
   const trustAverage = await loadTrustAverage(rootDir);
   const reflection = await loadReflectionSummary(rootDir);
-  const pendingMutations = await loadMutationSummary(rootDir);
+  const mutationSummary = await loadMutationSummary(rootDir);
   const activeAgents = await loadAgentCount(rootDir);
   const sleep = await loadSleepSummary(rootDir);
   const cycle = await loadCycleSummary(rootDir);
@@ -157,7 +152,11 @@ export async function getOrganismStatus(rootDir: string): Promise<StatusSnapshot
     confidence: clamp(Number(behavior.traits.traits.confidence ?? 5), 0, 10),
     trustAverage,
     reflection,
-    mutations: { pendingSuggestions: pendingMutations },
+    mutations: {
+      pendingSuggestions: mutationSummary.pending,
+      approvedSuggestions: mutationSummary.approved,
+      rejectedSuggestions: mutationSummary.rejected,
+    },
     agents: { active: activeAgents },
     sleep,
     agentSpawn: lastSpawn
@@ -188,7 +187,9 @@ export function formatOrganismStatus(status: StatusSnapshot): string {
   lines.push(`Curiosity: baseline=${status.curiosity.baseline} adjusted=${status.curiosity.adjusted}`);
   lines.push(`Confidence: ${status.confidence.toFixed(1)} · Trust avg: ${status.trustAverage.toFixed(1)}`);
   lines.push(`Reflection: pendingSignals=${status.reflection.pendingSignals}${status.reflection.lastNarrative ? ` · last=${status.reflection.lastNarrative}` : ""}`);
-  lines.push(`Mutations: pending suggestions=${status.mutations.pendingSuggestions}`);
+  lines.push(
+    `Mutations: pending=${status.mutations.pendingSuggestions} approved=${status.mutations.approvedSuggestions} rejected=${status.mutations.rejectedSuggestions}`,
+  );
   lines.push(`Agents: active=${status.agents.active}`);
   if (status.agentSpawn) {
     lines.push(`Last agent spawn: ${status.agentSpawn.type} · ${status.agentSpawn.goal} · reason=${status.agentSpawn.reason}`);

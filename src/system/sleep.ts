@@ -2,15 +2,15 @@ import { PathGuard } from './pathGuard.js';
 import { execSync, spawn } from 'child_process';
 import fs from 'fs/promises';
 import path from 'path';
-import { reflectSleepCycle, type MutationSuggestionState, type ReflectionSignalState } from '../brain/reflection_engine.js';
+import { reflectSleepCycle, type ReflectionSignalState } from '../brain/reflection_engine.js';
 import { loadEpisodicMemory, saveEpisodicMemory, type Episode } from '../memory/episodic_memory.js';
 import { appendNarrativeEntry, loadNarrativeMemory } from '../memory/memory_manager.js';
 import { loadSocialMemory, saveSocialMemory, type SocialProfile } from '../memory/social_memory.js';
 import { loadPersonalityState, savePersonalityState } from '../system/personality-adaptation.js';
 import { loadExplorationHistory, saveExplorationHistory } from '../memory/exploration_history.js';
 import { persistEnergyState } from '../organism/energy_system.js';
+import { reviewMutationSuggestions, ensureMutationSuggestionStore } from '../mutation/mutation_suggestions.js';
 
-const MUTATION_SUGGESTIONS_FILE = "brain/mutation_suggestions.json";
 const REFLECTION_SIGNALS_FILE = "brain/reflection_signals.json";
 const HEARTBEAT_FILE = "brain/heartbeat.json";
 
@@ -244,60 +244,9 @@ async function reviewBehavioralAdjustments(rootDir: string, now: string): Promis
   };
 }
 
-async function reviewMutationSuggestions(rootDir: string, now: string): Promise<{
-  approved: number;
-  rejected: number;
-}> {
-  const suggestionsPath = path.join(rootDir, MUTATION_SUGGESTIONS_FILE);
-  let state: MutationSuggestionState = { version: 1, suggestions: [] };
-  try {
-    state = JSON.parse(await fs.readFile(suggestionsPath, "utf-8")) as MutationSuggestionState;
-    if (!state || state.version !== 1 || !Array.isArray(state.suggestions)) {
-      state = { version: 1, suggestions: [] };
-    }
-  } catch {
-    state = { version: 1, suggestions: [] };
-  }
-
-  const seen = new Set<string>();
-  let approved = 0;
-  let rejected = 0;
-  for (const entry of state.suggestions) {
-    if (entry.status !== "pending") continue;
-    const key = String(entry.suggestion || "").trim().toLowerCase();
-    if (!key) {
-      entry.status = "rejected_for_now";
-      entry.reason = "empty_suggestion";
-      entry.reviewedAt = now;
-      rejected += 1;
-      continue;
-    }
-    if (seen.has(key)) {
-      entry.status = "rejected_for_now";
-      entry.reason = "duplicate";
-      entry.reviewedAt = now;
-      rejected += 1;
-      continue;
-    }
-    seen.add(key);
-    if (Number(entry.confidence || 0) >= 0.55) {
-      entry.status = "approved_for_pipeline";
-      entry.reviewedAt = now;
-      approved += 1;
-    } else {
-      entry.status = "rejected_for_now";
-      entry.reason = "low_confidence";
-      entry.reviewedAt = now;
-      rejected += 1;
-    }
-  }
-
-  if (state.suggestions.length > 300) {
-    state.suggestions = state.suggestions.slice(-300);
-  }
-  const target = await PathGuard.validatePath(MUTATION_SUGGESTIONS_FILE, "write");
-  await fs.writeFile(target, JSON.stringify(state, null, 2));
-  return { approved, rejected };
+async function reviewMutationSuggestionsForSleep(rootDir: string, now: string): Promise<void> {
+  await ensureMutationSuggestionStore(rootDir, new Date(now));
+  await reviewMutationSuggestions(rootDir, new Date(now));
 }
 
 async function maintainExplorationHistory(rootDir: string, summaryKeys: string[], now: string): Promise<void> {
@@ -357,7 +306,7 @@ export async function sleep() {
     timestamp: nowIso,
   });
   const adjustments = await reviewBehavioralAdjustments(root, nowIso);
-  await reviewMutationSuggestions(root, nowIso);
+  await reviewMutationSuggestionsForSleep(root, nowIso);
   await maintainExplorationHistory(root, consolidation.summaryKeys, nowIso);
   // Clear staging memory after snapshotting and synthesis.
   try {

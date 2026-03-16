@@ -8,6 +8,7 @@ import { ensureAgentState } from "../agents/agent_manager.js";
 import { ensureMemoryState } from "../memory/memory_manager.js";
 import { ensureTraitState } from "../organism/behavior_context.js";
 import { updateSocialMemoryEntry } from "../memory/memory_manager.js";
+import { ensureMutationSuggestionStore } from "../mutation/mutation_suggestions.js";
 import fs from "fs/promises";
 import { PathGuard } from "./pathGuard.js";
 import path from "path";
@@ -49,6 +50,7 @@ export async function runSelfDiscovery(
     await ensureAgentState(instanceDir);
     await ensureMemoryState(instanceDir);
     await ensureTraitState(instanceDir);
+    await ensureMutationSuggestionStore(instanceDir);
     await applyBirthSeed(instanceDir, seed);
 
     return instanceDir;
