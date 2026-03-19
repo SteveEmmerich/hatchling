@@ -52,6 +52,8 @@ All sandbox state is persisted in Docker volume `hatchling_data` under `/data` i
 
 ## 📖 Usage
 
+For long-term creature setup, see [SETUP_GUIDE.md](./SETUP_GUIDE.md).
+
 ### First Time Setup
 
 ```bash
