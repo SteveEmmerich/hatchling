@@ -31,6 +31,12 @@ npm link
 curl -fsSL https://raw.githubusercontent.com/SteveEmmerich/hatchling/codex/organism-architecture-refactor/scripts/install.sh | bash
 ```
 
+One-line Docker sandbox (current branch):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/SteveEmmerich/hatchling/codex/organism-architecture-refactor/scripts/install.sh | HATCHLING_MODE=docker bash
+```
+
 Override defaults if needed:
 
 ```bash

@@ -22,6 +22,12 @@ One-line install (current branch):
 curl -fsSL https://raw.githubusercontent.com/SteveEmmerich/hatchling/codex/organism-architecture-refactor/scripts/install.sh | bash
 ```
 
+One-line Docker sandbox (current branch):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/SteveEmmerich/hatchling/codex/organism-architecture-refactor/scripts/install.sh | HATCHLING_MODE=docker bash
+```
+
 You can override defaults:
 
 ```bash
