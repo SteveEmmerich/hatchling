@@ -25,6 +25,19 @@ Optional: make the CLI available globally
 npm link
 ```
 
+## One-line install (current branch)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/SteveEmmerich/hatchling/codex/organism-architecture-refactor/scripts/install.sh | bash
+```
+
+Override defaults if needed:
+
+```bash
+HATCHLING_DIR="$HOME/hatchling" HATCHLING_BRANCH=codex/organism-architecture-refactor \
+  curl -fsSL https://raw.githubusercontent.com/SteveEmmerich/hatchling/codex/organism-architecture-refactor/scripts/install.sh | bash
+```
+
 ## 3) Health check
 
 ```bash

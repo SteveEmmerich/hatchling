@@ -16,6 +16,19 @@ Hatchling is an extension for the [pi-coding-agent](https://github.com/badlogic/
 
 ## 🚀 Installation
 
+One-line install (current branch):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/SteveEmmerich/hatchling/codex/organism-architecture-refactor/scripts/install.sh | bash
+```
+
+You can override defaults:
+
+```bash
+HATCHLING_DIR="$HOME/hatchling" HATCHLING_BRANCH=codex/organism-architecture-refactor \
+  curl -fsSL https://raw.githubusercontent.com/SteveEmmerich/hatchling/codex/organism-architecture-refactor/scripts/install.sh | bash
+```
+
 ```bash
 # Install dependencies
 npm install
