@@ -25,23 +25,23 @@ Optional: make the CLI available globally
 npm link
 ```
 
-## One-line install (current branch)
+## One-line install (stable, no SSH key required)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/SteveEmmerich/hatchling/codex/organism-architecture-refactor/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/SteveEmmerich/hatchling/main/scripts/install.sh | bash
 ```
 
-One-line Docker sandbox (current branch):
+One-line Docker sandbox (stable):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/SteveEmmerich/hatchling/codex/organism-architecture-refactor/scripts/install.sh | HATCHLING_MODE=docker bash
+curl -fsSL https://raw.githubusercontent.com/SteveEmmerich/hatchling/main/scripts/install.sh | HATCHLING_MODE=docker bash
 ```
 
 Override defaults if needed:
 
 ```bash
-HATCHLING_DIR="$HOME/hatchling" HATCHLING_BRANCH=codex/organism-architecture-refactor \
-  curl -fsSL https://raw.githubusercontent.com/SteveEmmerich/hatchling/codex/organism-architecture-refactor/scripts/install.sh | bash
+HATCHLING_DIR="$HOME/hatchling" HATCHLING_BRANCH=main \
+  curl -fsSL https://raw.githubusercontent.com/SteveEmmerich/hatchling/main/scripts/install.sh | bash
 ```
 
 ## 3) Health check

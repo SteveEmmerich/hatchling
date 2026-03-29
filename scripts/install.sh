@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_URL="${HATCHLING_REPO_URL:-git@github.com:SteveEmmerich/hatchling.git}"
-BRANCH="${HATCHLING_BRANCH:-codex/organism-architecture-refactor}"
+REPO_URL="${HATCHLING_REPO_URL:-https://github.com/SteveEmmerich/hatchling.git}"
+BRANCH="${HATCHLING_BRANCH:-main}"
 TARGET_DIR="${HATCHLING_DIR:-$HOME/hatchling}"
 MODE="${HATCHLING_MODE:-node}"
 
@@ -35,7 +35,11 @@ if [ -d "$TARGET_DIR/.git" ]; then
   git -C "$TARGET_DIR" pull --ff-only origin "$BRANCH"
 else
   echo "Cloning $REPO_URL into $TARGET_DIR"
-  git clone --branch "$BRANCH" --single-branch "$REPO_URL" "$TARGET_DIR"
+  if ! git clone --branch "$BRANCH" --single-branch "$REPO_URL" "$TARGET_DIR"; then
+    echo "Clone failed. If prompted for credentials, ensure GitHub access is available." >&2
+    echo "Tip: use HATCHLING_REPO_URL with an accessible HTTPS URL." >&2
+    exit 1
+  fi
 fi
 
 cd "$TARGET_DIR/hatchling-core"
